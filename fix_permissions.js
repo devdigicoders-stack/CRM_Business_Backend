@@ -20,4 +20,7 @@ const fixAdminPermissions = async () => {
     }
 };
 
+
+// hhhh
+
 fixAdminPermissions();
