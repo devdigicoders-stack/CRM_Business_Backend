@@ -36,6 +36,10 @@ const userSchema = new mongoose.Schema({
     isActive: {
         type: Boolean,
         default: true
+    },
+    incentiveBalance: {
+        type: Number,
+        default: 0
     }
 }, { timestamps: true });
 

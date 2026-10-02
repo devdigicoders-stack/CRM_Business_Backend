@@ -37,6 +37,8 @@ router.post("/quotations", protect, authorizePermission("create_quotation"), quo
 router.get("/quotations", protect, authorizePermission("view_quotations"), quotationController.getQuotations);
 // Public View Quotation (No Login Required - for WhatsApp / Email link)
 router.get("/quotations/public/:quotationNumber", quotationController.getPublicQuotation);
+// Download Public Quotation PDF
+router.get("/quotations/public/:quotationNumber/pdf", quotationController.downloadPublicQuotationPDF);
 // View Single Quotation
 router.get("/quotations/:id", protect, quotationController.getQuotationById);
 // Update Quotation (Sales Exec / Manager / Admin)

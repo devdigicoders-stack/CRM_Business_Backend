@@ -47,6 +47,13 @@ const settingsSchema = new mongoose.Schema({
     digitalSignature: { type: String, default: "" }, // Base64 or Image URL for actual signature
     companyStamp: { type: String, default: "" }, // Base64 or Image URL for official rubber stamp seal
 
+    // Bank Account Details (for PDF Account Details section)
+    bankAccountName: { type: String, default: "" },
+    bankAccountNumber: { type: String, default: "" },
+    bankIfsc: { type: String, default: "" },
+    bankBranch: { type: String, default: "" },
+    bankAccountType: { type: String, default: "Current Account" },
+
     // Thank you note
     thankYouNote: { 
         type: String, 

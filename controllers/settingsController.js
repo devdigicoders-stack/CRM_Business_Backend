@@ -28,7 +28,9 @@ exports.updateSettings = async (req, res) => {
                 "termsAndConditions", "whyChooseUs",
                 "signatoryName", "signatoryDesignation", "signatoryCompany", "stampCity",
                 "digitalSignature", "companyStamp",
-                "thankYouNote", "websiteUrl", "linkedinUrl", "instagramUrl", "facebookUrl", "youtubeUrl"
+                "thankYouNote", "websiteUrl", "linkedinUrl", "instagramUrl", "facebookUrl", "youtubeUrl",
+                // Bank Account Details (PDF Account Details Section)
+                "bankAccountName", "bankAccountNumber", "bankIfsc", "bankBranch", "bankAccountType"
             ];
             
             updatableFields.forEach(field => {

@@ -47,16 +47,18 @@ exports.createQuotation = async (req, res) => {
             taxAmount,
             totalAmount,
             createdBy: req.user.id,
-            status: "Pending Approval" // Will go to manager
+            status: "Approved", // Automatically approved
+            approvedBy: req.user.id // Auto-approved by the creator
         });
 
         // Update Lead Status
-        await Lead.findByIdAndUpdate(leadId, { status: "Quotation Pending" });
+        await Lead.findByIdAndUpdate(leadId, { status: "Quotation Approved" });
 
         await quotation.populate("lead", "customerName companyName contactNumber email status");
         await quotation.populate("createdBy", "name email");
+        await quotation.populate("approvedBy", "name");
 
-        res.status(201).json({ message: "Quotation generated and sent for approval", quotation });
+        res.status(201).json({ message: "Quotation generated successfully", quotation });
     } catch (error) {
         res.status(500).json({ message: "Error generating quotation", error: error.message });
     }
@@ -201,12 +203,13 @@ exports.updateQuotation = async (req, res) => {
             quotation.totalAmount = totalAmount;
         }
 
-        // If quotation was rejected and creator edits it, reset to Pending Approval
+        // If quotation was rejected and creator edits it, auto-approve it again
         if (quotation.status === "Rejected" && !isAdminOrManager) {
-            quotation.status = "Pending Approval";
+            quotation.status = "Approved";
             quotation.managerRemark = "";
-            // Also reset lead status to Quotation Pending
-            await Lead.findByIdAndUpdate(quotation.lead, { status: "Quotation Pending" });
+            quotation.approvedBy = req.user.id;
+            // Also reset lead status to Quotation Approved
+            await Lead.findByIdAndUpdate(quotation.lead, { status: "Quotation Approved" });
         } else if (status) {
             quotation.status = status;
         }
@@ -277,5 +280,91 @@ exports.getPublicQuotation = async (req, res) => {
         });
     } catch (error) {
         res.status(500).json({ message: "Error fetching quotation", error: error.message });
+    }
+};
+
+// Generate and Download PDF
+exports.downloadPublicQuotationPDF = async (req, res) => {
+    try {
+        const identifier = req.params.quotationNumber;
+        let query = { quotationNumber: identifier };
+
+        let quotation = await Quotation.findOne(query)
+            .populate("lead", "customerName companyName contactNumber email address location status")
+            .populate("createdBy", "name email")
+            .populate("approvedBy", "name")
+            .populate("items.itemId", "name productCode serviceCode description");
+
+        if (!quotation && mongoose.Types.ObjectId.isValid(identifier)) {
+            quotation = await Quotation.findById(identifier)
+                .populate("lead", "customerName companyName contactNumber email address location status")
+                .populate("createdBy", "name email")
+                .populate("approvedBy", "name")
+                .populate("items.itemId", "name productCode serviceCode description");
+        }
+
+        if (!quotation) {
+            return res.status(404).json({ message: "Quotation not found." });
+        }
+
+        const settings = await Settings.findOne();
+        
+        const { generateQuotationPDF } = require("../utils/pdfGenerator");
+        const pdfBuffer = await generateQuotationPDF(quotation, settings);
+
+        res.set({
+            'Content-Type': 'application/pdf',
+            'Content-Disposition': `inline; filename=Quotation_${quotation.quotationNumber || 'Doc'}.pdf`,
+            'Content-Length': pdfBuffer.length
+        });
+
+        res.send(pdfBuffer);
+    } catch (error) {
+        console.error("PDF Generate Error: ", error);
+        res.status(500).json({ message: "Error generating PDF", error: error.message });
+    }
+};
+
+
+exports.downloadPublicQuotationImage = async (req, res) => {
+    try {
+        const { identifier } = req.params;
+        const mongoose = require('mongoose');
+
+        let query = { quotationNumber: identifier };
+
+        let quotation = await Quotation.findOne(query)
+            .populate("lead", "customerName companyName contactNumber email address location status")
+            .populate("createdBy", "name email")
+            .populate("approvedBy", "name")
+            .populate("items.itemId", "name productCode serviceCode description");
+
+        if (!quotation && mongoose.Types.ObjectId.isValid(identifier)) {
+            quotation = await Quotation.findById(identifier)
+                .populate("lead", "customerName companyName contactNumber email address location status")
+                .populate("createdBy", "name email")
+                .populate("approvedBy", "name")
+                .populate("items.itemId", "name productCode serviceCode description");
+        }
+
+        if (!quotation) {
+            return res.status(404).json({ message: "Quotation not found." });
+        }
+
+        const settings = await Settings.findOne();
+        
+        const { generateQuotationImage } = require("../utils/pdfGenerator");
+        const imageBuffer = await generateQuotationImage(quotation, settings);
+
+        res.set({
+            'Content-Type': 'image/jpeg',
+            'Content-Disposition': `inline; filename=Quotation_${quotation.quotationNumber || 'Doc'}.jpg`,
+            'Content-Length': imageBuffer.length
+        });
+
+        res.send(imageBuffer);
+    } catch (error) {
+        console.error("Image Generate Error: ", error);
+        res.status(500).json({ message: "Error generating Image", error: error.message });
     }
 };
