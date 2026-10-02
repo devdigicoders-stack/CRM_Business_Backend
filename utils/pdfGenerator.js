@@ -251,7 +251,7 @@ exports.generateQuotationPDF = async (quotation, settings) => {
             </html>
         `;
 
-        await page.setContent(htmlContent, { waitUntil: 'networkidle0' });
+        await page.setContent(htmlContent, { waitUntil: 'networkidle0', timeout: 300000 });
 
         const pdfBuffer = await page.pdf({
             format: 'A4',
@@ -432,7 +432,7 @@ exports.generateQuotationImage = async (quotation, settings) => {
             </html>
         `;
 
-        await page.setContent(htmlContent, { waitUntil: 'networkidle0' });
+        await page.setContent(htmlContent, { waitUntil: 'networkidle0', timeout: 300000 });
 
         await page.setViewport({ width: 794, height: 1122 });
         const element = await page.$('.a4-container');
