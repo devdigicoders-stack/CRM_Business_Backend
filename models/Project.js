@@ -27,6 +27,13 @@ const projectSchema = new mongoose.Schema({
     
     currentStep: { type: Number, default: 1 }, // Tracks the current active task step from TaskTemplates
 
+    // Final Handover / Hardware tracking (Added for receipt generation)
+    installedEquipments: [{
+        itemName: { type: String, required: true },
+        serialNumber: { type: String, required: true },
+        quantity: { type: Number, default: 1 }
+    }],
+
     startDate: { type: Date, default: Date.now },
     endDate: { type: Date },
     remarks: { type: String }

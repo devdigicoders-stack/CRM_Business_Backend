@@ -28,6 +28,9 @@ router.put("/projects/:id/workflow", protect, authorizePermission("manage_projec
 // Get documents related to a project
 router.get("/projects/:id/documents", protect, authorizePermission("view_projects"), operationController.getProjectDocuments);
 
+// Save installed equipments / serial numbers (Admin/Ops Head)
+router.put("/projects/:id/equipment", protect, authorizePermission("manage_project_workflow"), operationController.addInstalledEquipment);
+
 // ================= TASKS =================
 // Only Ops Head/Admin assigns tasks
 router.put("/tasks/:id/assign", protect, authorizePermission("create_task"), operationController.assignTask);

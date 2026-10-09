@@ -384,3 +384,17 @@ exports.addTATRemark = async (req, res) => {
         res.status(200).json({ message: "TAT delay remark added successfully", task });
     } catch (err) { res.status(500).json({ error: err.message }); }
 };
+
+// ================= HARDWARE / EQUIPMENT =================
+exports.addInstalledEquipment = async (req, res) => {
+    try {
+        const { equipments } = req.body;
+        const project = await Project.findById(req.params.id);
+        if (!project) return res.status(404).json({ message: "Project not found" });
+
+        project.installedEquipments = equipments; // array of { itemName, serialNumber, quantity }
+        await project.save();
+
+        res.status(200).json({ message: "Installed equipments updated successfully", project });
+    } catch (err) { res.status(500).json({ error: err.message }); }
+};
