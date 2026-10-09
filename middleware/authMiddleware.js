@@ -39,6 +39,11 @@ exports.authorizePermission = (requiredPermission) => {
             return next();
         }
 
+        // Customer Bypass for own projects and payments
+        if (req.user.role.name === 'Customer' && (requiredPermission === 'view_projects' || requiredPermission === 'view_payments')) {
+            return next();
+        }
+
         const userPermissions = req.user.role.permissions || [];
 
         // Check exact permission or overarching manager permission

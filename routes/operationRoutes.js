@@ -25,6 +25,8 @@ router.post("/projects", protect, authorizePermission("create_project"), operati
 router.get("/projects", protect, authorizePermission("view_projects"), operationController.getProjects); 
 // Forward project to next workflow stage
 router.put("/projects/:id/workflow", protect, authorizePermission("manage_project_workflow"), operationController.forwardProjectWorkflow);
+// Get documents related to a project
+router.get("/projects/:id/documents", protect, authorizePermission("view_projects"), operationController.getProjectDocuments);
 
 // ================= TASKS =================
 // Only Ops Head/Admin assigns tasks

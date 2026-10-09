@@ -98,10 +98,38 @@ exports.createProject = async (req, res) => {
 
 exports.getProjects = async (req, res) => {
     try {
-        const projects = await Project.find()
+        let filter = {};
+        if (req.user.role?.name === "Customer") {
+            // Find leads associated with this customer
+            const userEmail = req.user.email;
+            const leads = await Lead.find({ email: userEmail }).select("_id");
+            const leadIds = leads.map(l => l._id);
+            filter = { lead: { $in: leadIds } };
+        }
+
+        const projects = await Project.find(filter)
             .populate("lead", "customerName email contactNumber")
-            .populate("operationHead", "name");
-        res.status(200).json(projects);
+            .populate("operationHead", "name")
+            .sort({ createdAt: -1 })
+            .lean(); // Lean for modifying the object
+
+        const Payment = require("../models/Payment");
+
+        // Attach payment info to each project
+        const projectsWithPayment = await Promise.all(projects.map(async (project) => {
+            const payment = await Payment.findOne({ project: project._id });
+            return {
+                ...project,
+                paymentData: payment ? {
+                    totalAmount: payment.totalAmount,
+                    paidAmount: payment.paidAmount,
+                    balanceAmount: payment.balanceAmount,
+                    status: payment.status
+                } : null
+            };
+        }));
+
+        res.status(200).json(projectsWithPayment);
     } catch (err) { res.status(500).json({ error: err.message }); }
 };
 
@@ -140,6 +168,36 @@ exports.forwardProjectWorkflow = async (req, res) => {
     } catch (err) { res.status(500).json({ error: err.message }); }
 };
 
+exports.getProjectDocuments = async (req, res) => {
+    try {
+        const project = await Project.findById(req.params.id);
+        if (!project) return res.status(404).json({ message: "Project not found" });
+
+        const lead = await Lead.findById(project.lead);
+        const CustomerDocument = require("../models/CustomerDocument");
+        const extraDocs = await CustomerDocument.find({ lead: project.lead });
+
+        let allDocs = [];
+        if (lead && lead.documents) {
+            allDocs = lead.documents.map(d => ({
+                documentName: d.documentType,
+                fileUrl: d.fileUrl,
+                source: 'Lead'
+            }));
+        }
+
+        extraDocs.forEach(d => {
+            allDocs.push({
+                documentName: d.documentName,
+                fileUrl: d.fileUrl,
+                source: 'CustomerDocument'
+            });
+        });
+
+        res.status(200).json(allDocs);
+    } catch (err) { res.status(500).json({ error: err.message }); }
+};
+
 // ================= TASKS (Phase 4) =================
 exports.assignTask = async (req, res) => {
     try {
@@ -162,6 +220,11 @@ exports.assignTask = async (req, res) => {
         task.dueDate = dueDate;
         task.status = "In Progress";
         
+        // Add reference documents if provided
+        if (req.body.referenceDocuments && Array.isArray(req.body.referenceDocuments)) {
+            task.referenceDocuments = req.body.referenceDocuments;
+        }
+        
         await task.save();
         res.status(200).json({ message: "Task assigned successfully with TAT deadline", task });
     } catch (err) { res.status(500).json({ error: err.message }); }
@@ -170,7 +233,14 @@ exports.assignTask = async (req, res) => {
 exports.getTasks = async (req, res) => {
     try {
         let filter = {};
-        if (req.user.role?.name !== "Admin" && req.user.role?.name !== "Operation Head") {
+        if (req.user.role?.name === "Customer") {
+            const userEmail = req.user.email;
+            const leads = await Lead.find({ email: userEmail }).select("_id");
+            const leadIds = leads.map(l => l._id);
+            const projects = await Project.find({ lead: { $in: leadIds } }).select("_id");
+            const projectIds = projects.map(p => p._id);
+            filter.project = { $in: projectIds };
+        } else if (req.user.role?.name !== "Admin" && req.user.role?.name !== "Operation Head") {
             filter.assignedTo = req.user.id;
         }
         const tasks = await Task.find(filter)

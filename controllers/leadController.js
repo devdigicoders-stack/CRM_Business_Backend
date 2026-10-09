@@ -1,11 +1,16 @@
 const Lead = require("../models/Lead");
 const Quotation = require("../models/Quotation");
 const User = require("../models/User");
+const Role = require("../models/Role");
+const Project = require("../models/Project");
+const Task = require("../models/Task");
+const TaskTemplate = require("../models/TaskTemplate");
+const Payment = require("../models/Payment");
 
 // Create a new Lead
 exports.createLead = async (req, res) => {
     try {
-        const { customerName, contactNumber, email, companyName, status } = req.body;
+        const { customerName, contactNumber, email, companyName, status, customerPassword } = req.body;
         
         let newDocuments = [];
         if (req.files && req.files.length > 0) {
@@ -34,6 +39,7 @@ exports.createLead = async (req, res) => {
             contactNumber,
             email,
             companyName,
+            customerPassword,
             status: status || 'Pending',
             documents: newDocuments,
             createdBy: req.user.id
@@ -162,7 +168,7 @@ exports.getLeads = async (req, res) => {
 // Update Lead (Status change or adding Follow-up remark)
 exports.updateLead = async (req, res) => {
     try {
-        const { customerName, contactNumber, email, companyName, source, status, remarkText, nextFollowUpDate } = req.body;
+        const { customerName, contactNumber, email, companyName, source, status, remarkText, nextFollowUpDate, customerPassword } = req.body;
         const lead = await Lead.findById(req.params.id);
 
         if (!lead) {
@@ -174,10 +180,90 @@ exports.updateLead = async (req, res) => {
         if (email !== undefined) lead.email = email;
         if (companyName !== undefined) lead.companyName = companyName;
         if (source) lead.source = source;
+        if (customerPassword !== undefined) lead.customerPassword = customerPassword;
         if (status) {
             if (lead.status === "Closed-Won" && status !== "Closed-Won") {
                 return res.status(400).json({ message: "Lead status cannot be changed once it is Closed-Won" });
             }
+            
+            // If status is changing to Closed-Won, auto-create customer account
+            if (lead.status !== "Closed-Won" && status === "Closed-Won") {
+                if (!lead.email || !lead.customerPassword) {
+                    return res.status(400).json({ message: "Email and Customer Password are required to mark as Closed-Won and create account" });
+                }
+
+                // Check if customer role exists
+                let customerRole = await Role.findOne({ name: "Customer" });
+                if (!customerRole) {
+                    customerRole = await Role.create({
+                        name: "Customer",
+                        permissions: ["view_own_data"]
+                    });
+                }
+
+                // Check if user already exists
+                const existingUser = await User.findOne({ email: lead.email });
+                if (!existingUser) {
+                    await User.create({
+                        name: lead.customerName,
+                        email: lead.email,
+                        password: lead.customerPassword,
+                        role: customerRole._id,
+                        isActive: true
+                    });
+                }
+
+                // --- AUTO-CREATE PROJECT ---
+                // Mark lead as converted
+                lead.isConverted = true;
+
+                const existingProject = await Project.findOne({ lead: lead._id });
+                if (!existingProject) {
+                    const project = await Project.create({
+                        lead: lead._id,
+                        customerName: lead.customerName,
+                        operationHead: req.user.id, // Assign current user (admin/sales) as default, can be changed later
+                        remarks: "Auto-created from Closed-Won lead",
+                        currentStep: 1
+                    });
+
+                    // Auto-generate Tasks
+                    const templates = await TaskTemplate.find().sort({ stepNumber: 1 });
+                    const tasksToCreate = templates.map(template => ({
+                        project: project._id,
+                        department: template.department,
+                        stepNumber: template.stepNumber,
+                        taskName: template.taskName,
+                        description: template.description,
+                        tatHours: template.tatHours,
+                        opsHeadReminderHours: template.opsHeadReminderHours || 24,
+                        requiredDocuments: template.requiredDocuments.map(doc => ({ documentName: doc, isUploaded: false })),
+                        status: "Pending"
+                    }));
+
+                    if (tasksToCreate.length > 0) {
+                        await Task.insertMany(tasksToCreate);
+                    }
+
+                    // --- AUTO-CREATE PAYMENT ---
+                    const existingPayment = await Payment.findOne({ lead: lead._id });
+                    if (!existingPayment) {
+                        // Find latest approved quotation
+                        const latestQuotation = await Quotation.findOne({ lead: lead._id, status: 'Approved' }).sort({ createdAt: -1 });
+                        const totalAmount = latestQuotation ? latestQuotation.totalAmount : 0;
+                        
+                        if (totalAmount > 0) {
+                            await Payment.create({
+                                lead: lead._id,
+                                project: project._id,
+                                totalAmount,
+                                balanceAmount: totalAmount
+                            });
+                        }
+                    }
+                }
+            }
+
             lead.status = status;
         }
         if (nextFollowUpDate) lead.nextFollowUpDate = nextFollowUpDate;

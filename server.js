@@ -30,6 +30,7 @@ const dashboardRoutes = require("./routes/dashboardRoutes");
 const paymentRoutes = require("./routes/paymentRoutes");
 const incentiveRoutes = require("./routes/incentiveRoutes");
 const expenseRoutes = require("./routes/expenseRoutes");
+const documentRoutes = require("./routes/documentRoutes");
 const { checkTATBreaches } = require("./cron/tatCronJobs");
 
 // Use Routes
@@ -42,6 +43,7 @@ app.use("/api/dashboard", dashboardRoutes);
 app.use("/api/payments", paymentRoutes);
 app.use("/api/incentives", incentiveRoutes);
 app.use("/api/expenses", expenseRoutes);
+app.use("/api/documents", documentRoutes);
 
 // Start TAT Cron Jobs
 checkTATBreaches();

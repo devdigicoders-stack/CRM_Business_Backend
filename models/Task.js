@@ -22,6 +22,10 @@ const taskSchema = new mongoose.Schema({
         fileUrl: { type: String },
         isUploaded: { type: Boolean, default: false }
     }],
+    referenceDocuments: [{ // Documents sent by Admin/Ops Head to the employee for reference
+        documentName: { type: String, required: true },
+        fileUrl: { type: String, required: true }
+    }],
     dueDate: { type: Date }, // Set automatically using TAT when assigned
     assignedAt: { type: Date }, // When Ops Head assigns it to an employee
     submittedAt: { type: Date }, // When employee uploads docs and clicks submit

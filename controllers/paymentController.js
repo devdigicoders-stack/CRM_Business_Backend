@@ -26,9 +26,17 @@ exports.initializePayment = async (req, res) => {
 // Get All Payments (For Manager/Admin tracking)
 exports.getAllPayments = async (req, res) => {
     try {
-        const payments = await Payment.find()
+        let filter = {};
+        if (req.user.role?.name === "Customer") {
+            const Lead = require("../models/Lead");
+            const leads = await Lead.find({ email: req.user.email }).select("_id");
+            filter.lead = { $in: leads.map(l => l._id) };
+        }
+
+        const payments = await Payment.find(filter)
             .populate("lead", "customerName contactNumber")
-            .populate("project", "customerName status");
+            .populate("project", "customerName status")
+            .sort({ createdAt: -1 });
             
         res.status(200).json(payments);
     } catch (error) {
