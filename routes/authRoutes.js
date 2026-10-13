@@ -26,6 +26,9 @@ router.put("/profile/change-password", protect, authController.changePassword);
 // Get All Users
 router.get("/users", protect, authorizePermission("manage_employees"), authController.getAllUsers);
 
+// Get All Customers (Accessible to all staff members, hidden from customers)
+router.get("/customers", protect, authController.getAllCustomers);
+
 // Get Assignable Users for Lead Assign Dropdown (Hierarchy-aware, no extra permission needed)
 
 

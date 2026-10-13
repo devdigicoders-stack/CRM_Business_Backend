@@ -16,8 +16,8 @@ router.get("/leads/closed-won/all", protect, authorizePermission("view_closed_wo
 router.get("/leads/:id", protect, leadController.getLeadById);
 // Update Lead (Add follow-ups, change status)
 router.put("/leads/:id", protect, leadController.updateLead);
-// Delete Lead (Admin only)
-router.delete("/leads/:id", protect, authorizePermission("manage_leads"), leadController.deleteLead);
+// Delete Lead (Allowed for all users)
+router.delete("/leads/:id", protect, leadController.deleteLead);
 // Convert Lead to Final Customer
 router.post("/leads/:id/convert", protect, authorizePermission("convert_lead"), leadController.convertLead);
 

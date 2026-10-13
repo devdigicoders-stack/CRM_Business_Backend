@@ -398,3 +398,38 @@ exports.addInstalledEquipment = async (req, res) => {
         res.status(200).json({ message: "Installed equipments updated successfully", project });
     } catch (err) { res.status(500).json({ error: err.message }); }
 };
+
+// ================= DELETE PROJECT (Super Admin Only) =================
+exports.deleteProject = async (req, res) => {
+    try {
+        // Enforce Super Admin check
+        const isSuperAdmin = req.user.role?.name === "Admin" || req.user.role?.name === "Super Admin";
+        if (!isSuperAdmin) {
+            return res.status(403).json({ message: "Access Denied: Only Super Admin can delete projects" });
+        }
+
+        const project = await Project.findById(req.params.id);
+        if (!project) {
+            return res.status(404).json({ message: "Project not found" });
+        }
+
+        // Delete all tasks associated with this project
+        await Task.deleteMany({ project: project._id });
+
+        // Delete all payment records linked to this project
+        await Payment.deleteMany({ project: project._id });
+
+        // Reset lead's isConverted flag if present
+        if (project.lead) {
+            await Lead.findByIdAndUpdate(project.lead, { isConverted: false });
+        }
+
+        // Delete the project document
+        await Project.findByIdAndDelete(req.params.id);
+
+        res.status(200).json({ message: "Project deleted successfully" });
+    } catch (err) {
+        res.status(500).json({ message: "Error deleting project", error: err.message });
+    }
+};
+

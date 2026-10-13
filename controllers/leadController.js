@@ -12,6 +12,14 @@ exports.createLead = async (req, res) => {
     try {
         const { customerName, contactNumber, email, companyName, status, customerPassword } = req.body;
         
+        if (!email || !email.trim()) {
+            return res.status(400).json({ message: "Email is mandatory" });
+        }
+
+        if (!req.files || req.files.length === 0) {
+            return res.status(400).json({ message: "Documents are mandatory. Please upload the required documents." });
+        }
+
         let newDocuments = [];
         if (req.files && req.files.length > 0) {
             const { documentTypes } = req.body;
@@ -96,10 +104,25 @@ exports.getLeads = async (req, res) => {
         let filter = {};
         const userRole = req.user.role?.name;
 
-        const { page = 1, limit = 10, status, search } = req.query;
+        const { page = 1, limit = 10, status, search, includeClosedWon } = req.query;
         
-        if (status && status !== 'All') {
-            filter.status = status;
+        // Exclude Closed-Won and converted leads from active leads pipeline
+        if (includeClosedWon !== 'true') {
+            if (status && status !== 'All') {
+                if (status === 'Closed-Won') {
+                    filter.status = '__none__';
+                } else {
+                    filter.status = status;
+                    filter.isConverted = { $ne: true };
+                }
+            } else {
+                filter.status = { $ne: 'Closed-Won' };
+                filter.isConverted = { $ne: true };
+            }
+        } else {
+            if (status && status !== 'All') {
+                filter.status = status;
+            }
         }
 
         // Hierarchy Filtering (Same as Quotations)
@@ -473,13 +496,38 @@ exports.verifyDocument = async (req, res) => {
     }
 };
 
-// Delete Lead
+// Delete Lead (Allowed for all users)
 exports.deleteLead = async (req, res) => {
     try {
-        const lead = await Lead.findByIdAndDelete(req.params.id);
+        const lead = await Lead.findById(req.params.id);
         if (!lead) return res.status(404).json({ message: "Lead not found" });
+
+        // Clean up linked quotations
+        await Quotation.deleteMany({ lead: lead._id });
+
+        // Clean up linked customer documents
+        try {
+            const CustomerDocument = require("../models/CustomerDocument");
+            await CustomerDocument.deleteMany({ lead: lead._id });
+        } catch (e) {
+            console.error("Error cleaning up customer documents for lead:", e);
+        }
+
+        // Clean up linked projects, tasks, and payments
+        const projects = await Project.find({ lead: lead._id });
+        for (const proj of projects) {
+            await Task.deleteMany({ project: proj._id });
+            await Payment.deleteMany({ project: proj._id });
+        }
+        await Project.deleteMany({ lead: lead._id });
+        await Payment.deleteMany({ lead: lead._id });
+
+        // Finally delete the lead
+        await Lead.findByIdAndDelete(req.params.id);
+
         res.status(200).json({ message: "Lead deleted successfully" });
     } catch (error) {
         res.status(500).json({ message: "Error deleting lead", error: error.message });
     }
 };
+

@@ -158,22 +158,26 @@ exports.changePassword = async (req, res) => {
     }
 };
 
-// Get All Users (For Admin/HR to view all staff)
+// Get All Users (For Admin/HR to view all staff, excludes Customers)
 exports.getAllUsers = async (req, res) => {
     try {
         const userRole = req.user.role?.name;
         const bypassHierarchy = req.query.all === 'true';
         let query = {};
 
+        // Find customer role so we can exclude customers from staff list
+        const customerRole = await Role.findOne({ name: "Customer" });
+        if (customerRole) {
+            query.role = { $ne: customerRole._id };
+        }
+
         // If they are Admin OR bypassHierarchy is true, they see everyone.
         // If they are anything else (like Sales Manager or Operation Head), they only see their hierarchy.
         if (userRole !== "Admin" && !bypassHierarchy) {
-            query = {
-                $or: [
-                    { reportingManager: req.user.id },
-                    { _id: req.user.id }
-                ]
-            };
+            query.$or = [
+                { reportingManager: req.user.id },
+                { _id: req.user.id }
+            ];
         }
 
         // Exclude passwords from the response, populate role and reportingManager
@@ -187,30 +191,53 @@ exports.getAllUsers = async (req, res) => {
     }
 };
 
-// Get Assignable Users (Hierarchy-aware: for Lead Assign dropdown)
-// Admin → sees all staff
-// Sales Manager → sees only their own team (children with reportingManager = this manager)
-// Others → sees nobody (no permission to assign)
+// Get All Customers (Accessible to all staff, hidden from customers)
+exports.getAllCustomers = async (req, res) => {
+    try {
+        if (req.user.role?.name === "Customer") {
+            return res.status(403).json({ message: "Access Denied: Customers cannot view customer list" });
+        }
+
+        const customerRole = await Role.findOne({ name: "Customer" });
+        if (!customerRole) {
+            return res.status(200).json([]);
+        }
+
+        const customers = await User.find({ role: customerRole._id })
+            .select("-password")
+            .populate("role", "name")
+            .sort({ createdAt: -1 });
+
+        res.status(200).json(customers);
+    } catch (error) {
+        res.status(500).json({ message: "Error fetching customers", error: error.message });
+    }
+};
+
+// Get Assignable Users (Hierarchy-aware: for Lead Assign dropdown, excludes Customers)
 exports.getAssignableUsers = async (req, res) => {
     try {
         const userRole = req.user.role?.name;
         let users = [];
 
+        const customerRole = await Role.findOne({ name: "Customer" });
+        const excludeCustomer = customerRole ? { role: { $ne: customerRole._id } } : {};
+
         if (userRole === "Admin") {
-            // Admin sees all active users except themselves
-            users = await User.find({ isActive: true, _id: { $ne: req.user.id } })
+            // Admin sees all active staff except themselves
+            users = await User.find({ isActive: true, _id: { $ne: req.user.id }, ...excludeCustomer })
                 .select("-password")
                 .populate("role", "name");
         } else if (userRole === "Sales Manager") {
             // Manager sees only their direct children (reportingManager = this manager)
             users = await User.find({ 
                 reportingManager: req.user.id,
-                isActive: true 
+                isActive: true,
+                ...excludeCustomer
             })
                 .select("-password")
                 .populate("role", "name");
         } else {
-            // Instead of 403, just return empty array for regular users so frontend doesn't throw console errors
             return res.status(200).json([]);
         }
 
@@ -305,26 +332,31 @@ exports.adminToggleUserStatus = async (req, res) => {
     }
 };
 
-// Admin: Change Any User's Password
+// Admin: Change Any User's / Customer's Password (Super Admin Only)
 exports.adminChangeUserPassword = async (req, res) => {
     try {
         const { id } = req.params;
         const { newPassword } = req.body;
+
+        const isSuperAdmin = req.user.role?.name === "Admin" || req.user.role?.name === "Super Admin";
+        if (!isSuperAdmin) {
+            return res.status(403).json({ message: "Action Not Allowed: Only Super Admin can change passwords." });
+        }
 
         const user = await User.findById(id).populate("role");
         if (!user) {
             return res.status(404).json({ message: "User not found" });
         }
 
-        if (user.role && user.role.name === "Admin") {
+        if (user.role && user.role.name === "Admin" && req.user.id !== user._id.toString()) {
             return res.status(403).json({ message: "Action Not Allowed: You cannot change password of Super Admin." });
         }
 
         user.password = newPassword; // Saving as plain text as requested earlier
         await user.save();
 
-        res.status(200).json({ message: "User password changed successfully" });
+        res.status(200).json({ message: "Password changed successfully" });
     } catch (error) {
-        res.status(500).json({ message: "Error changing user password", error: error.message });
+        res.status(500).json({ message: "Error changing password", error: error.message });
     }
 };

@@ -9,7 +9,7 @@ const remarkSchema = new mongoose.Schema({
 const leadSchema = new mongoose.Schema({
     customerName: { type: String, required: true },
     contactNumber: { type: String, required: true },
-    email: { type: String },
+    email: { type: String, required: true },
     companyName: { type: String }, // Customer's company
     customerPassword: { type: String }, // Password for customer account creation
     createdBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" }, // Added createdBy
