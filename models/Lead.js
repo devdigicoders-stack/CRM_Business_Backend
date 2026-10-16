@@ -13,6 +13,8 @@ const leadSchema = new mongoose.Schema({
     companyName: { type: String }, // Customer's company
     customerPassword: { type: String }, // Password for customer account creation
     createdBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" }, // Added createdBy
+    assignedTo: { type: mongoose.Schema.Types.ObjectId, ref: "User" }, // Assigned employee
+    assignedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
     source: { type: String, enum: ["Website", "JustDial", "Reference", "Facebook", "Cold Call", "Instagram", "Google", "Other"], default: "Other" },
     status: { type: String, enum: ["Pending", "New", "Contacted", "Interested", "Follow-up", "Follow Up", "Quotation Pending", "Quotation Sent", "Quotation Approved", "Quotation Rejected", "Negotiation", "Closed-Won", "Closed-Lost", "Rejected", "Approved"], default: "Pending" },
     remarks: [remarkSchema],

@@ -78,15 +78,26 @@ exports.getClosedWonLeads = async (req, res) => {
             const children = await User.find({ reportingManager: req.user.id }).select("_id");
             const allowedIds = children.map(u => u._id.toString());
             allowedIds.push(req.user.id.toString());
-            filter.createdBy = { $in: allowedIds };
+            filter = {
+                $and: [
+                    { $or: [{ isConverted: true }, { status: "Closed-Won" }] },
+                    { $or: [{ createdBy: { $in: allowedIds } }, { assignedTo: { $in: allowedIds } }] }
+                ]
+            };
         } else {
-            // Staff / Executive sees only their own converted leads
-            filter.createdBy = req.user.id;
+            // Staff / Executive sees only their own converted leads (created or assigned)
+            filter = {
+                $and: [
+                    { $or: [{ isConverted: true }, { status: "Closed-Won" }] },
+                    { $or: [{ createdBy: req.user.id }, { assignedTo: req.user.id }] }
+                ]
+            };
         }
 
         const leads = await Lead.find(filter)
             .sort({ createdAt: -1 })
             .populate("createdBy", "name email")
+            .populate("assignedTo", "name email")
             .populate("remarks.addedBy", "name")
             .populate("quotation");
 
@@ -126,6 +137,7 @@ exports.getLeads = async (req, res) => {
         }
 
         // Hierarchy Filtering (Same as Quotations)
+        const hierarchyConditions = [];
         if (userRole === "Admin" || userRole === "Operation Head") {
             // Can see all leads
         } else if (userRole === "Sales Manager") {
@@ -133,18 +145,34 @@ exports.getLeads = async (req, res) => {
             const children = await User.find({ reportingManager: req.user.id }).select("_id");
             const allowedIds = children.map(u => u._id.toString());
             allowedIds.push(req.user.id.toString());
-            filter.createdBy = { $in: allowedIds };
+            hierarchyConditions.push({
+                $or: [
+                    { createdBy: { $in: allowedIds } },
+                    { assignedTo: { $in: allowedIds } }
+                ]
+            });
         } else {
-            // Sales Executive sees only their own
-            filter.createdBy = req.user.id;
+            // Sales Executive sees only their own (created or assigned)
+            hierarchyConditions.push({
+                $or: [
+                    { createdBy: req.user.id },
+                    { assignedTo: req.user.id }
+                ]
+            });
         }
 
         if (search) {
-            filter.$or = [
-                { customerName: { $regex: search, $options: "i" } },
-                { companyName: { $regex: search, $options: "i" } },
-                { contactNumber: { $regex: search, $options: "i" } }
-            ];
+            hierarchyConditions.push({
+                $or: [
+                    { customerName: { $regex: search, $options: "i" } },
+                    { companyName: { $regex: search, $options: "i" } },
+                    { contactNumber: { $regex: search, $options: "i" } }
+                ]
+            });
+        }
+
+        if (hierarchyConditions.length > 0) {
+            filter.$and = hierarchyConditions;
         }
 
         const skip = (parseInt(page) - 1) * parseInt(limit);
@@ -155,6 +183,8 @@ exports.getLeads = async (req, res) => {
             .sort({ createdAt: -1 }) // Newest first
             .skip(skip)
             .limit(parseInt(limit))
+            .populate("createdBy", "name email")
+            .populate("assignedTo", "name email")
             .populate("remarks.addedBy", "name");
 
         // Attach latest quotation for each lead
@@ -246,6 +276,7 @@ exports.updateLead = async (req, res) => {
                         lead: lead._id,
                         customerName: lead.customerName,
                         operationHead: req.user.id, // Assign current user (admin/sales) as default, can be changed later
+                        assignedTo: lead.assignedTo || lead.createdBy || req.user.id,
                         remarks: "Auto-created from Closed-Won lead",
                         currentStep: 1
                     });

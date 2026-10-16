@@ -30,6 +30,8 @@ router.get("/projects/:id/documents", protect, authorizePermission("view_project
 
 // Save installed equipments / serial numbers (Admin/Ops Head)
 router.put("/projects/:id/equipment", protect, authorizePermission("manage_project_workflow"), operationController.addInstalledEquipment);
+// Assign project to employee/manager (Admin/Ops Head)
+router.put("/projects/:id/assign", protect, authorizePermission("manage_project_workflow"), operationController.assignProject);
 // Delete project (Super Admin only - verified in controller)
 router.delete("/projects/:id", protect, operationController.deleteProject);
 

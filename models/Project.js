@@ -13,6 +13,8 @@ const projectSchema = new mongoose.Schema({
     customerName: { type: String, required: true },
     quotation: { type: mongoose.Schema.Types.ObjectId, ref: "Quotation" }, // The approved bill
     operationHead: { type: mongoose.Schema.Types.ObjectId, ref: "User" }, // Ops head handling it
+    assignedTo: { type: mongoose.Schema.Types.ObjectId, ref: "User" }, // Assigned project manager / employee
+    assignedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
     
     // Overall Status
     status: { type: String, enum: ["Pending", "In Progress", "Completed", "On Hold"], default: "Pending" },

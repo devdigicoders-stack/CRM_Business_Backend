@@ -34,6 +34,7 @@ exports.createProject = async (req, res) => {
             customerName,
             quotation: quotationId ? quotationId : undefined,
             operationHead: req.user.id,
+            assignedTo: lead.assignedTo || lead.createdBy || req.user.id,
             remarks,
             currentStep: 1
         });
@@ -99,17 +100,57 @@ exports.createProject = async (req, res) => {
 exports.getProjects = async (req, res) => {
     try {
         let filter = {};
-        if (req.user.role?.name === "Customer") {
+        const userRole = req.user.role?.name;
+        const userId = req.user._id || req.user.id;
+        const User = require("../models/User");
+
+        if (userRole === "Customer") {
             // Find leads associated with this customer
             const userEmail = req.user.email;
             const leads = await Lead.find({ email: userEmail }).select("_id");
             const leadIds = leads.map(l => l._id);
             filter = { lead: { $in: leadIds } };
+        } else if (userRole === "Admin" || userRole === "Operation Head") {
+            // Admin and Ops Head see all projects
+        } else {
+            // Staff / Sales Manager / Sales Executive / Employee:
+            const children = await User.find({ reportingManager: userId }).select("_id");
+            const relevantUserIds = [userId, ...children.map(u => u._id)];
+
+            // Find leads belonging to relevant users
+            const userLeads = await Lead.find({
+                $or: [
+                    { createdBy: { $in: relevantUserIds } },
+                    { assignedTo: { $in: relevantUserIds } }
+                ]
+            }).select("_id");
+            const userLeadIds = userLeads.map(l => l._id);
+
+            // Find projects where user/subordinates have assigned tasks
+            const userTasks = await Task.find({ assignedTo: { $in: relevantUserIds } }).select("project");
+            const taskProjectIds = userTasks.map(t => t.project).filter(Boolean);
+
+            filter = {
+                $or: [
+                    { lead: { $in: userLeadIds } },
+                    { operationHead: { $in: relevantUserIds } },
+                    { assignedTo: { $in: relevantUserIds } },
+                    { _id: { $in: taskProjectIds } }
+                ]
+            };
         }
 
         const projects = await Project.find(filter)
-            .populate("lead", "customerName email contactNumber")
-            .populate("operationHead", "name")
+            .populate({
+                path: "lead",
+                select: "customerName email contactNumber createdBy assignedTo",
+                populate: [
+                    { path: "createdBy", select: "name email" },
+                    { path: "assignedTo", select: "name email" }
+                ]
+            })
+            .populate("operationHead", "name email")
+            .populate("assignedTo", "name email")
             .sort({ createdAt: -1 })
             .lean(); // Lean for modifying the object
 
@@ -307,27 +348,87 @@ exports.assignTask = async (req, res) => {
 exports.getTasks = async (req, res) => {
     try {
         let filter = {};
-        if (req.user.role?.name === "Customer") {
+        const userRole = req.user.role?.name;
+        const userId = req.user._id || req.user.id;
+        const User = require("../models/User");
+
+        if (userRole === "Customer") {
             const userEmail = req.user.email;
             const leads = await Lead.find({ email: userEmail }).select("_id");
             const leadIds = leads.map(l => l._id);
             const projects = await Project.find({ lead: { $in: leadIds } }).select("_id");
             const projectIds = projects.map(p => p._id);
             filter.project = { $in: projectIds };
-        } else if (req.user.role?.name !== "Admin" && req.user.role?.name !== "Operation Head") {
-            filter.assignedTo = req.user.id;
+        } else if (userRole === "Admin" || userRole === "Operation Head") {
+            // Admin and Ops Head see all tasks
+            if (req.query.projectId || req.query.project) {
+                filter.project = req.query.projectId || req.query.project;
+            }
+        } else {
+            // For other roles (Sales Manager, Sales Executive, Employee, Technicians, etc.):
+            // 1. Direct tasks assigned to this user / subordinates
+            // 2. Tasks for projects where this user is assignedTo or operationHead
+            // 3. Tasks for projects linked to leads assigned to or created by this user
+            const children = await User.find({ reportingManager: userId }).select("_id");
+            const relevantUserIds = [userId, ...children.map(u => u._id)];
+
+            // Find leads assigned to or created by relevant users
+            const leads = await Lead.find({
+                $or: [
+                    { createdBy: { $in: relevantUserIds } },
+                    { assignedTo: { $in: relevantUserIds } }
+                ]
+            }).select("_id");
+            const leadIds = leads.map(l => l._id);
+
+            // Find projects where user/subordinates have assigned tasks
+            const userTasks = await Task.find({ assignedTo: { $in: relevantUserIds } }).select("project");
+            const taskProjectIds = userTasks.map(t => t.project).filter(Boolean);
+
+            // Find projects linked to those leads, OR projects directly assigned to relevant users, OR projects where user has tasks
+            const projects = await Project.find({
+                $or: [
+                    { lead: { $in: leadIds } },
+                    { operationHead: { $in: relevantUserIds } },
+                    { assignedTo: { $in: relevantUserIds } },
+                    { _id: { $in: taskProjectIds } }
+                ]
+            }).select("_id");
+            const projectIds = projects.map(p => p._id);
+
+            const orConditions = [
+                { assignedTo: { $in: relevantUserIds } }
+            ];
+
+            if (projectIds.length > 0) {
+                orConditions.push({ project: { $in: projectIds } });
+            }
+
+            if (req.query.projectId || req.query.project) {
+                const requestedProj = req.query.projectId || req.query.project;
+                filter = {
+                    $and: [
+                        { project: requestedProj },
+                        { $or: orConditions }
+                    ]
+                };
+            } else {
+                filter.$or = orConditions;
+            }
         }
+
         const tasks = await Task.find(filter)
-            .populate("project", "customerName status currentStep")
+            .populate("project", "customerName status currentStep workflowStage")
             .populate("department", "name")
-            .populate("assignedTo", "name")
-            .populate("assignedBy", "name")
+            .populate("assignedTo", "name email")
+            .populate("assignedBy", "name email")
             .populate({
                 path: "remarks.addedBy",
                 select: "name role",
                 populate: { path: "role", select: "name" }
             })
             .sort({ "project": 1, "stepNumber": 1 });
+
         res.status(200).json(tasks);
     } catch (err) { res.status(500).json({ error: err.message }); }
 };
@@ -338,7 +439,8 @@ exports.submitTask = async (req, res) => {
         const task = await Task.findById(req.params.id);
         if (!task) return res.status(404).json({ message: "Task not found" });
 
-        if (req.user.role !== "Admin" && req.user.role !== "Operation Head" && task.assignedTo.toString() !== req.user.id) {
+        const isAdminOrOps = req.user.role?.name === "Admin" || req.user.role?.name === "Operation Head";
+        if (!isAdminOrOps && task.assignedTo?.toString() !== req.user.id.toString()) {
             return res.status(403).json({ message: "You can only submit your own tasks." });
         }
 
@@ -504,6 +606,35 @@ exports.deleteProject = async (req, res) => {
         res.status(200).json({ message: "Project deleted successfully" });
     } catch (err) {
         res.status(500).json({ message: "Error deleting project", error: err.message });
+    }
+};
+
+// ================= ASSIGN PROJECT =================
+exports.assignProject = async (req, res) => {
+    try {
+        const { assignedTo } = req.body;
+        const project = await Project.findById(req.params.id);
+        if (!project) return res.status(404).json({ message: "Project not found" });
+
+        project.assignedTo = assignedTo;
+        project.assignedBy = req.user.id;
+        await project.save();
+
+        const updatedProject = await Project.findById(project._id)
+            .populate({
+                path: "lead",
+                select: "customerName email contactNumber createdBy assignedTo",
+                populate: [
+                    { path: "createdBy", select: "name email" },
+                    { path: "assignedTo", select: "name email" }
+                ]
+            })
+            .populate("operationHead", "name email")
+            .populate("assignedTo", "name email");
+
+        res.status(200).json({ message: "Project assigned successfully", project: updatedProject });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
     }
 };
 
