@@ -34,25 +34,33 @@ exports.authorizePermission = (requiredPermission) => {
             return res.status(403).json({ message: "Role details not found" });
         }
 
+        const roleName = req.user.role?.name;
+
         // Super Admin Bypass
-        if (req.user.role.name === 'Admin') {
+        if (roleName === 'Admin' || roleName === 'Super Admin') {
             return next();
         }
 
+        const permissionsToCheck = Array.isArray(requiredPermission) ? requiredPermission : [requiredPermission];
+
         // Customer Bypass for own projects and payments
-        if (req.user.role.name === 'Customer' && (requiredPermission === 'view_projects' || requiredPermission === 'view_payments')) {
+        if (roleName === 'Customer' && (permissionsToCheck.includes('view_projects') || permissionsToCheck.includes('view_payments'))) {
             return next();
         }
 
         const userPermissions = req.user.role.permissions || [];
 
         // Check exact permission or overarching manager permission
-        const isAllowed = userPermissions.includes(requiredPermission) ||
-            (requiredPermission.includes("quotation") && userPermissions.includes("manage_quotations")) ||
-            (requiredPermission.includes("lead") && userPermissions.includes("manage_leads")) ||
-            (requiredPermission.includes("user") && userPermissions.includes("manage_employees")) ||
-            (requiredPermission.includes("role") && userPermissions.includes("manage_employees")) ||
-            (requiredPermission.includes("settings") && userPermissions.includes("manage_settings"));
+        const isAllowed = permissionsToCheck.some(perm => 
+            userPermissions.includes(perm) ||
+            (perm === "manage_hardware" && userPermissions.includes("manage_project_workflow")) ||
+            (perm === "view_projects" && userPermissions.includes("manage_hardware")) ||
+            (perm.includes("quotation") && userPermissions.includes("manage_quotations")) ||
+            (perm.includes("lead") && userPermissions.includes("manage_leads")) ||
+            (perm.includes("user") && userPermissions.includes("manage_employees")) ||
+            (perm.includes("role") && userPermissions.includes("manage_employees")) ||
+            (perm.includes("settings") && userPermissions.includes("manage_settings"))
+        );
 
         if (isAllowed) {
             next();

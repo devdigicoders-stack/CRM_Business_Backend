@@ -151,16 +151,26 @@ exports.getProjects = async (req, res) => {
             })
             .populate("operationHead", "name email")
             .populate("assignedTo", "name email")
+            .populate("quotation")
             .sort({ createdAt: -1 })
             .lean(); // Lean for modifying the object
 
         const Payment = require("../models/Payment");
 
-        // Attach payment info to each project
+        // Attach payment info and quotation data to each project
         const projectsWithPayment = await Promise.all(projects.map(async (project) => {
             const payment = await Payment.findOne({ project: project._id });
+            let quotation = project.quotation;
+            if (!quotation && project.lead) {
+                const leadId = project.lead._id || project.lead;
+                quotation = await Quotation.findOne({ lead: leadId, status: "Approved" }).sort({ createdAt: -1 }).lean();
+                if (!quotation) {
+                    quotation = await Quotation.findOne({ lead: leadId }).sort({ createdAt: -1 }).lean();
+                }
+            }
             return {
                 ...project,
+                quotationData: quotation,
                 paymentData: payment ? {
                     totalAmount: payment.totalAmount,
                     paidAmount: payment.paidAmount,

@@ -23,7 +23,7 @@ const rolesData = [
       // Quotations
       "create_quotation", "view_quotations", "manage_quotations",
       // Operations
-      "create_project", "view_projects", "manage_project_workflow",
+      "create_project", "view_projects", "manage_project_workflow", "manage_hardware",
       "create_task", "add_task_remark", "view_calendar",
       // Users & Settings
       "create_employees", "manage_employees", "create_managers",
@@ -37,7 +37,7 @@ const rolesData = [
       // Can view approved leads and docs
       "view_leads", "verify_documents",
       // Project & Task Management
-      "create_project", "view_projects", "manage_project_workflow",
+      "create_project", "view_projects", "manage_project_workflow", "manage_hardware",
       "create_task", "add_task_remark",
       // Payment tracking
       "view_quotations", "view_calendar"
