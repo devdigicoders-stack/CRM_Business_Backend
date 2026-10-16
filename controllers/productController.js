@@ -3,9 +3,21 @@ const Product = require("../models/Product");
 // Create Product (Admin / with manage_products permission)
 exports.createProduct = async (req, res) => {
     try {
-        const { name, price, basePrice, description, itemType, gstPercentage } = req.body;
-        if (!name || !price) return res.status(400).json({ message: "Name and price are required" });
-        const product = await Product.create({ name, price, basePrice: basePrice || 0, description, itemType, gstPercentage });
+        const { name, price, basePrice, description, itemType, gstPercentage, capacity, phase, kitComponents } = req.body;
+        if (!name || price === undefined || price === null || price === '') {
+            return res.status(400).json({ message: "Name and price are required" });
+        }
+        const product = await Product.create({ 
+            name, 
+            price: Number(price), 
+            basePrice: basePrice ? Number(basePrice) : 0, 
+            description, 
+            itemType: itemType || 'Product', 
+            gstPercentage: gstPercentage !== undefined ? Number(gstPercentage) : 18,
+            capacity: capacity || '',
+            phase: phase || '',
+            kitComponents: Array.isArray(kitComponents) ? kitComponents : []
+        });
         res.status(201).json({ message: "Product created successfully", product });
     } catch (error) {
         res.status(500).json({ message: "Error creating product", error: error.message });
@@ -25,10 +37,23 @@ exports.getProducts = async (req, res) => {
 // Update Product
 exports.updateProduct = async (req, res) => {
     try {
-        const { name, price, basePrice, description, itemType, gstPercentage } = req.body;
+        const { name, price, basePrice, description, itemType, gstPercentage, capacity, phase, kitComponents } = req.body;
+        const updateData = { 
+            name, 
+            price: Number(price), 
+            basePrice: basePrice ? Number(basePrice) : 0, 
+            description, 
+            itemType: itemType || 'Product', 
+            gstPercentage: gstPercentage !== undefined ? Number(gstPercentage) : 18,
+            capacity: capacity || '',
+            phase: phase || ''
+        };
+        if (kitComponents !== undefined) {
+            updateData.kitComponents = Array.isArray(kitComponents) ? kitComponents : [];
+        }
         const product = await Product.findByIdAndUpdate(
             req.params.id,
-            { name, price, basePrice, description, itemType, gstPercentage },
+            updateData,
             { new: true }
         );
         if (!product) return res.status(404).json({ message: "Product not found" });

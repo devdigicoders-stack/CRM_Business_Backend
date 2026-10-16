@@ -9,7 +9,7 @@ const Quotation = require("../models/Quotation");
 // ================= PROJECTS (Phase 4) =================
 exports.createProject = async (req, res) => {
     try {
-        const { leadId, quotationId, customerName, remarks } = req.body;
+        const { leadId, quotationId, customerName, remarks, selectedTemplateIds } = req.body;
         
         // Ensure lead exists and is either converted or Closed-Won
         const lead = await Lead.findById(leadId);
@@ -39,12 +39,16 @@ exports.createProject = async (req, res) => {
             currentStep: 1
         });
 
-        // Fetch all templates to generate tasks
-        const templates = await TaskTemplate.find().sort({ stepNumber: 1 });
-        const tasksToCreate = templates.map(template => ({
+        // Fetch selected or all templates to generate tasks
+        let templateQuery = {};
+        if (Array.isArray(selectedTemplateIds) && selectedTemplateIds.length > 0) {
+            templateQuery._id = { $in: selectedTemplateIds };
+        }
+        const templates = await TaskTemplate.find(templateQuery).sort({ stepNumber: 1 });
+        const tasksToCreate = templates.map((template, idx) => ({
             project: project._id,
             department: template.department,
-            stepNumber: template.stepNumber,
+            stepNumber: idx + 1,
             taskName: template.taskName,
             description: template.description,
             tatHours: template.tatHours,
@@ -427,6 +431,39 @@ exports.getTasks = async (req, res) => {
             }
         }
 
+        // ================= STATUS FILTERING =================
+        // Assigned employees should only see OPEN tasks. Completed & Approved tasks must be hidden.
+        const isProjectSpecific = Boolean(req.query.projectId || req.query.project);
+        const isAdminOrOps = userRole === "Admin" || userRole === "Operation Head";
+
+        let statusCondition = null;
+        if (req.query.status) {
+            const st = req.query.status.toLowerCase();
+            if (st === 'open') {
+                statusCondition = { status: { $nin: ["Completed", "Approved"] } };
+            } else if (st !== 'all') {
+                statusCondition = { status: req.query.status };
+            }
+        } else if (!isProjectSpecific && !isAdminOrOps && req.query.includeCompleted !== 'true') {
+            // Default for assigned staff/employees: ONLY OPEN TASKS (hide Completed and Approved tasks)
+            statusCondition = { status: { $nin: ["Completed", "Approved"] } };
+        }
+
+        if (statusCondition) {
+            if (filter.$or) {
+                filter = {
+                    $and: [
+                        { $or: filter.$or },
+                        statusCondition
+                    ]
+                };
+            } else if (filter.$and) {
+                filter.$and.push(statusCondition);
+            } else {
+                Object.assign(filter, statusCondition);
+            }
+        }
+
         const tasks = await Task.find(filter)
             .populate("project", "customerName status currentStep workflowStage")
             .populate("department", "name")
@@ -599,21 +636,61 @@ exports.deleteProject = async (req, res) => {
             return res.status(404).json({ message: "Project not found" });
         }
 
+        // Prevent deletion of completed projects
+        if (project.status === "Completed" || project.workflowStage === "Completed") {
+            return res.status(400).json({ message: "Action Not Allowed: Completed projects cannot be deleted." });
+        }
+
         // Delete all tasks associated with this project
         await Task.deleteMany({ project: project._id });
 
         // Delete all payment records linked to this project
         await Payment.deleteMany({ project: project._id });
 
-        // Reset lead's isConverted flag if present
+        // If cascade delete requested (e.g. ?cascade=true or ?deleteLead=true)
+        const shouldCascade = req.query.cascade === "true" || req.query.deleteLead === "true";
+
         if (project.lead) {
-            await Lead.findByIdAndUpdate(project.lead, { isConverted: false });
+            if (shouldCascade) {
+                const leadId = project.lead;
+                const leadDoc = await Lead.findById(leadId);
+                
+                // Delete quotations linked to this lead
+                await Quotation.deleteMany({ lead: leadId });
+
+                // Delete customer documents
+                try {
+                    const CustomerDocument = require("../models/CustomerDocument");
+                    await CustomerDocument.deleteMany({ lead: leadId });
+                } catch (e) {}
+
+                // Delete Customer user account
+                if (leadDoc && leadDoc.email) {
+                    try {
+                        const Role = require("../models/Role");
+                        const customerRole = await Role.findOne({ name: "Customer" });
+                        if (customerRole) {
+                            await User.deleteMany({ email: leadDoc.email, role: customerRole._id });
+                        }
+                    } catch (e) {}
+                }
+
+                // Delete the lead itself
+                await Lead.findByIdAndDelete(leadId);
+            } else {
+                // Reset lead's isConverted flag if present
+                await Lead.findByIdAndUpdate(project.lead, { isConverted: false });
+            }
         }
 
         // Delete the project document
         await Project.findByIdAndDelete(req.params.id);
 
-        res.status(200).json({ message: "Project deleted successfully" });
+        res.status(200).json({ 
+            message: shouldCascade 
+                ? "Project, linked lead, quotations and customer account deleted successfully" 
+                : "Project deleted successfully" 
+        });
     } catch (err) {
         res.status(500).json({ message: "Error deleting project", error: err.message });
     }
@@ -643,6 +720,141 @@ exports.assignProject = async (req, res) => {
             .populate("assignedTo", "name email");
 
         res.status(200).json({ message: "Project assigned successfully", project: updatedProject });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+};
+
+// ================= ADD CUSTOM TASK TO PROJECT =================
+exports.addCustomTask = async (req, res) => {
+    try {
+        const { taskName, department, description, tatHours, requiredDocuments } = req.body;
+        if (!taskName || !department) {
+            return res.status(400).json({ message: "Task name and department are required." });
+        }
+
+        const project = await Project.findById(req.params.id);
+        if (!project) return res.status(404).json({ message: "Project not found" });
+
+        const highestTask = await Task.findOne({ project: project._id }).sort({ stepNumber: -1 });
+        const nextStep = highestTask ? (highestTask.stepNumber || 0) + 1 : 1;
+
+        let reqDocs = [];
+        if (Array.isArray(requiredDocuments)) {
+            reqDocs = requiredDocuments.map(d => typeof d === 'string' ? { documentName: d, isUploaded: false } : d);
+        }
+
+        const task = await Task.create({
+            project: project._id,
+            department,
+            taskName,
+            description: description || "",
+            tatHours: tatHours || 24,
+            opsHeadReminderHours: 24,
+            stepNumber: nextStep,
+            status: "Pending",
+            requiredDocuments: reqDocs
+        });
+
+        const populatedTask = await Task.findById(task._id)
+            .populate("project", "customerName status currentStep workflowStage")
+            .populate("department", "name")
+            .populate("assignedTo", "name email");
+
+        res.status(201).json({ message: "Custom task added to project successfully", task: populatedTask });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+};
+
+// ================= DELETE TASK FROM PROJECT =================
+exports.deleteTask = async (req, res) => {
+    try {
+        const task = await Task.findById(req.params.id);
+        if (!task) return res.status(404).json({ message: "Task not found" });
+
+        if (task.status === "Completed" || task.status === "Approved") {
+            return res.status(400).json({ message: "Completed tasks cannot be deleted." });
+        }
+
+        const projectId = task.project;
+        await task.deleteOne();
+
+        // Re-number step numbers cleanly
+        const remainingTasks = await Task.find({ project: projectId }).sort({ stepNumber: 1 });
+        for (let i = 0; i < remainingTasks.length; i++) {
+            if (remainingTasks[i].stepNumber !== i + 1) {
+                remainingTasks[i].stepNumber = i + 1;
+                await remainingTasks[i].save();
+            }
+        }
+
+        res.status(200).json({ message: "Task removed from project successfully" });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+};
+
+// ================= SELECT / SYNC TEMPLATE TASKS FOR PROJECT =================
+exports.selectProjectTasks = async (req, res) => {
+    try {
+        const { selectedTemplateIds } = req.body;
+        const project = await Project.findById(req.params.id);
+        if (!project) return res.status(404).json({ message: "Project not found" });
+
+        if (!Array.isArray(selectedTemplateIds) || selectedTemplateIds.length === 0) {
+            return res.status(400).json({ message: "Please select at least one task template." });
+        }
+
+        // Fetch chosen templates
+        const templates = await TaskTemplate.find({ _id: { $in: selectedTemplateIds } }).sort({ stepNumber: 1 });
+
+        // Find existing tasks for this project
+        const existingTasks = await Task.find({ project: project._id });
+
+        // Delete any uncompleted task that is NOT in selected templates
+        for (const t of existingTasks) {
+            if (t.status !== "Completed" && t.status !== "Approved") {
+                const isSelected = templates.some(tpl => tpl.taskName === t.taskName);
+                if (!isSelected) {
+                    await t.deleteOne();
+                }
+            }
+        }
+
+        // Add any selected template that doesn't exist yet
+        const currentRemaining = await Task.find({ project: project._id });
+        for (let i = 0; i < templates.length; i++) {
+            const tpl = templates[i];
+            const alreadyExists = currentRemaining.some(t => t.taskName === tpl.taskName);
+            if (!alreadyExists) {
+                await Task.create({
+                    project: project._id,
+                    department: tpl.department,
+                    stepNumber: currentRemaining.length + i + 1,
+                    taskName: tpl.taskName,
+                    description: tpl.description,
+                    tatHours: tpl.tatHours,
+                    opsHeadReminderHours: tpl.opsHeadReminderHours || 24,
+                    requiredDocuments: tpl.requiredDocuments.map(doc => ({ documentName: doc, isUploaded: false })),
+                    status: "Pending"
+                });
+            }
+        }
+
+        // Re-number step numbers cleanly
+        const updatedTasks = await Task.find({ project: project._id }).sort({ stepNumber: 1 });
+        for (let i = 0; i < updatedTasks.length; i++) {
+            updatedTasks[i].stepNumber = i + 1;
+            await updatedTasks[i].save();
+        }
+
+        const finalTasks = await Task.find({ project: project._id })
+            .populate("project", "customerName status currentStep workflowStage")
+            .populate("department", "name")
+            .populate("assignedTo", "name email");
+
+        res.status(200).json({ message: "Project tasks updated successfully", tasks: finalTasks });
     } catch (err) {
         res.status(500).json({ error: err.message });
     }

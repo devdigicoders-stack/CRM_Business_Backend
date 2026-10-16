@@ -117,15 +117,11 @@ exports.getLeads = async (req, res) => {
 
         const { page = 1, limit = 10, status, search, includeClosedWon } = req.query;
         
-        // Exclude Closed-Won and converted leads from active leads pipeline
-        if (includeClosedWon !== 'true') {
+        // Exclude Closed-Won and converted leads from active leads pipeline unless explicitly requested
+        if (includeClosedWon !== 'true' && status !== 'Closed-Won') {
             if (status && status !== 'All') {
-                if (status === 'Closed-Won') {
-                    filter.status = '__none__';
-                } else {
-                    filter.status = status;
-                    filter.isConverted = { $ne: true };
-                }
+                filter.status = status;
+                filter.isConverted = { $ne: true };
             } else {
                 filter.status = { $ne: 'Closed-Won' };
                 filter.isConverted = { $ne: true };
@@ -553,10 +549,23 @@ exports.deleteLead = async (req, res) => {
         await Project.deleteMany({ lead: lead._id });
         await Payment.deleteMany({ lead: lead._id });
 
+        // Clean up linked customer user account (role: Customer)
+        try {
+            if (lead.email) {
+                const Role = require("../models/Role");
+                const customerRole = await Role.findOne({ name: "Customer" });
+                if (customerRole) {
+                    await User.deleteMany({ email: lead.email, role: customerRole._id });
+                }
+            }
+        } catch (userErr) {
+            console.error("Error cleaning up customer user for lead:", userErr);
+        }
+
         // Finally delete the lead
         await Lead.findByIdAndDelete(req.params.id);
 
-        res.status(200).json({ message: "Lead deleted successfully" });
+        res.status(200).json({ message: "Lead, linked data and customer account deleted successfully" });
     } catch (error) {
         res.status(500).json({ message: "Error deleting lead", error: error.message });
     }

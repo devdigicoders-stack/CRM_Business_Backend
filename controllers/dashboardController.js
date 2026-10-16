@@ -179,7 +179,11 @@ exports.getMasterDashboard = async (req, res) => {
             const myRejected = await Task.countDocuments({ assignedTo: userId, status: "Rejected" });
             const myOverdue = await Task.countDocuments({ assignedTo: userId, dueDate: { $lt: new Date() }, status: { $in: ["Pending", "In Progress", "Rejected"] } });
 
-            const myRecentTasks = await Task.find({ assignedTo: userId })
+            // For Employee recent tasks, only show OPEN tasks (hide Completed/Approved)
+            const myRecentTasks = await Task.find({ 
+                assignedTo: userId, 
+                status: { $nin: ["Completed", "Approved"] } 
+            })
                 .sort({ createdAt: -1 })
                 .limit(5)
                 .populate("project", "customerName")

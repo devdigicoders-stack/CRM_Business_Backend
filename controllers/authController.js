@@ -360,3 +360,42 @@ exports.adminChangeUserPassword = async (req, res) => {
         res.status(500).json({ message: "Error changing password", error: error.message });
     }
 };
+
+// Admin: Delete Customer
+exports.deleteCustomer = async (req, res) => {
+    try {
+        const isSuperAdmin = req.user.role?.name === "Admin" || req.user.role?.name === "Super Admin";
+        if (!isSuperAdmin) {
+            return res.status(403).json({ message: "Access Denied: Only Super Admin can delete customers" });
+        }
+
+        const customer = await User.findById(req.params.id).populate("role");
+        if (!customer) {
+            return res.status(404).json({ message: "Customer not found" });
+        }
+
+        if (customer.role?.name !== "Customer") {
+            return res.status(400).json({ message: "Action Denied: This action can only delete customers" });
+        }
+
+        // Clean up linked customer documents if any
+        try {
+            const CustomerDocument = require("../models/CustomerDocument");
+            if (customer.email) {
+                const Lead = require("../models/Lead");
+                const linkedLead = await Lead.findOne({ email: customer.email });
+                if (linkedLead) {
+                    await CustomerDocument.deleteMany({ lead: linkedLead._id });
+                }
+            }
+        } catch (e) {
+            console.error("Error cleaning customer documents:", e);
+        }
+
+        await customer.deleteOne();
+        res.status(200).json({ message: "Customer deleted successfully" });
+    } catch (error) {
+        res.status(500).json({ message: "Error deleting customer", error: error.message });
+    }
+};
+

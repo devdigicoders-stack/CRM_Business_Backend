@@ -36,6 +36,13 @@ router.put("/projects/:id/assign", protect, authorizePermission("manage_project_
 router.delete("/projects/:id", protect, operationController.deleteProject);
 
 // ================= TASKS =================
+// Add custom task to project
+router.post("/projects/:id/tasks", protect, authorizePermission(["create_task", "manage_project_workflow"]), operationController.addCustomTask);
+// Select / Sync template tasks for project
+router.post("/projects/:id/select-tasks", protect, authorizePermission(["create_task", "manage_project_workflow"]), operationController.selectProjectTasks);
+// Delete task from project
+router.delete("/tasks/:id", protect, authorizePermission(["create_task", "manage_project_workflow"]), operationController.deleteTask);
+
 // Assign multiple tasks at once (Ops Head/Admin)
 router.put("/tasks/assign-multiple", protect, authorizePermission("create_task"), operationController.assignMultipleTasks);
 // Only Ops Head/Admin assigns tasks

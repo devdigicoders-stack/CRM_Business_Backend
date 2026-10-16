@@ -28,6 +28,7 @@ router.get("/users", protect, authorizePermission("manage_employees"), authContr
 
 // Get All Customers (Accessible to all staff members, hidden from customers)
 router.get("/customers", protect, authController.getAllCustomers);
+router.delete("/customers/:id", protect, authController.deleteCustomer);
 
 // Get Assignable Users for Lead Assign Dropdown (Hierarchy-aware, no extra permission needed)
 
