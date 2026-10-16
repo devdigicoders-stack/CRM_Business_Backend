@@ -199,15 +199,80 @@ exports.getProjectDocuments = async (req, res) => {
 };
 
 // ================= TASKS (Phase 4) =================
+exports.assignMultipleTasks = async (req, res) => {
+    try {
+        const { assignments, taskIds, assignedTo, referenceDocuments } = req.body;
+        let assignmentList = [];
+
+        // Mode 1: Array of individual assignments: [{ taskId, assignedTo, referenceDocuments }]
+        if (Array.isArray(assignments) && assignments.length > 0) {
+            assignmentList = assignments.filter(a => a && a.taskId && a.assignedTo);
+        } 
+        // Mode 2: Bulk assignment of taskIds to single assignedTo
+        else if (Array.isArray(taskIds) && taskIds.length > 0 && assignedTo) {
+            assignmentList = taskIds.map(taskId => ({
+                taskId,
+                assignedTo,
+                referenceDocuments: referenceDocuments || []
+            }));
+        }
+
+        if (assignmentList.length === 0) {
+            return res.status(400).json({ message: "No tasks to assign. Please select an employee for at least one task." });
+        }
+
+        const updatedTasks = [];
+        const affectedProjectIds = new Set();
+
+        for (const item of assignmentList) {
+            const task = await Task.findById(item.taskId).populate("project");
+            if (!task) continue;
+
+            const tatHours = parseFloat(task.tatHours) || 24;
+            const dueDate = new Date(Date.now() + (tatHours * 60 * 60 * 1000));
+
+            task.assignedTo = item.assignedTo;
+            task.assignedBy = req.user.id;
+            task.assignedAt = new Date();
+            task.dueDate = dueDate;
+            task.status = "In Progress";
+
+            if (item.referenceDocuments && Array.isArray(item.referenceDocuments) && item.referenceDocuments.length > 0) {
+                task.referenceDocuments = item.referenceDocuments;
+            }
+
+            await task.save();
+            updatedTasks.push(task);
+
+            if (task.project && task.project._id) {
+                affectedProjectIds.add(task.project._id.toString());
+            }
+        }
+
+        // If any affected project was Pending, mark it In Progress
+        for (const projId of affectedProjectIds) {
+            const project = await Project.findById(projId);
+            if (project && project.status === "Pending") {
+                project.status = "In Progress";
+                await project.save();
+            }
+        }
+
+        return res.status(200).json({
+            message: `Successfully assigned ${updatedTasks.length} task(s)!`,
+            count: updatedTasks.length,
+            tasks: updatedTasks
+        });
+    } catch (err) {
+        return res.status(500).json({ error: err.message });
+    }
+};
+
 exports.assignTask = async (req, res) => {
     try {
         const { assignedTo } = req.body;
         const task = await Task.findById(req.params.id).populate("project");
         if (!task) return res.status(404).json({ message: "Task not found" });
-
-        if (task.project && task.stepNumber !== task.project.currentStep) {
-            return res.status(400).json({ message: `Cannot assign Step ${task.stepNumber} task. Project is currently at Step ${task.project.currentStep}.` });
-        }
 
         const tatHours = parseFloat(task.tatHours) || 24;
         
@@ -226,6 +291,15 @@ exports.assignTask = async (req, res) => {
         }
         
         await task.save();
+
+        if (task.project) {
+            const project = await Project.findById(task.project._id);
+            if (project && project.status === "Pending") {
+                project.status = "In Progress";
+                await project.save();
+            }
+        }
+
         res.status(200).json({ message: "Task assigned successfully with TAT deadline", task });
     } catch (err) { res.status(500).json({ error: err.message }); }
 };

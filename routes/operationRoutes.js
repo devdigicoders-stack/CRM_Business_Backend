@@ -34,6 +34,8 @@ router.put("/projects/:id/equipment", protect, authorizePermission("manage_proje
 router.delete("/projects/:id", protect, operationController.deleteProject);
 
 // ================= TASKS =================
+// Assign multiple tasks at once (Ops Head/Admin)
+router.put("/tasks/assign-multiple", protect, authorizePermission("create_task"), operationController.assignMultipleTasks);
 // Only Ops Head/Admin assigns tasks
 router.put("/tasks/:id/assign", protect, authorizePermission("create_task"), operationController.assignTask);
 // Employees get their tasks
