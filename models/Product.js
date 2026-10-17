@@ -9,7 +9,7 @@ const kitComponentSchema = new mongoose.Schema({
 }, { _id: false });
 
 const productSchema = new mongoose.Schema({
-    itemType: { type: String, enum: ['Product', 'Service', 'Kit'], default: 'Product' },
+    itemType: { type: String, enum: ['Product', 'Service', 'Kit', 'Installation Package'], default: 'Product' },
     name: { type: String, required: true, trim: true },
     capacity: { type: String, default: '' },       // e.g. "3kW", "5kW", "10kW"
     phase: { type: String, default: '' },          // e.g. "Single Phase", "Three Phase"
