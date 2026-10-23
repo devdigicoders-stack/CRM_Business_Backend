@@ -1,0 +1,45 @@
+Admin
+•	Create and manage employees
+•	Create Sales Managers and Sales Executives
+•	Assign employees under respective managers
+•	Manage products/services
+•	Manage CRM settings
+•	Monitor complete business activities
+•	View reports and dashboards
+•	Receive TAT breach notifications
+Operation Head
+•	View approved leads
+•	Verify and manage customer documents
+•	Assign tasks to respective employees/departments
+•	Monitor task progress
+•	Approve completed tasks
+•	Assign the next workflow stage
+•	Monitor TAT
+•	Manage payment follow-ups
+•	Add payment-related remarks
+Sales Manager
+•	Manage Sales Executives assigned under them
+•	Receive newly created leads
+•	Review and approve leads
+•	Verify uploaded documents
+•	Monitor sales team activities
+•	Track quotations and customer status
+•	Monitor payment status
+•	Add payment/TAT remarks
+Sales Executive
+•	Create new customer leads
+•	Submit customer information
+•	Upload required documents
+•	Create quotations
+•	Select products/services
+•	Share quotation with customers through WhatsApp
+•	Track lead status
+•	View assigned tasks
+•	Add required remarks
+Other Staff / Department Users
+The Admin/Operation Head can create users such as:
+•	Computer Operator
+•	Registration Team
+•	Bank Coordinator
+•	Installation Team
+•	Other operational staff
