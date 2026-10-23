@@ -1,7 +1,7 @@
 const mongoose = require("mongoose");
 
 const quotationItemSchema = new mongoose.Schema({
-    itemType: { type: String, enum: ["Product", "Service"], required: true },
+    itemType: { type: String, enum: ["Product", "Service", "Kit", "Installation Package", "Wire Kit"], required: true },
     itemId: { type: mongoose.Schema.Types.ObjectId, required: false }, // Optional for on-the-fly custom items
     name: { type: String, required: true }, // Name of product or service
     description: { type: String, default: "" }, // Extra line item description / features

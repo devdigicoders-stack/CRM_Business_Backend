@@ -107,11 +107,11 @@ function buildQuotationHTML(quotation, settings = {}) {
     const displayProductTotal = Math.round(grandTotal * 0.70 * 100) / 100;
     const displayServiceTotal = Math.round((grandTotal - displayProductTotal) * 100) / 100;
 
-    // Tax Breakup 2-Row Split (Row 1: 18% GST on Product A, Row 2: 5% GST on Service B)
-    const row1Taxable = Math.round((displayProductTotal / 1.18) * 100) / 100;
+    // Tax Breakup 2-Row Split (Row 1: 5% GST on Product A, Row 2: 18% GST on Service B)
+    const row1Taxable = Math.round((displayProductTotal / 1.05) * 100) / 100;
     const row1Gst = Math.round((displayProductTotal - row1Taxable) * 100) / 100;
 
-    const row2Taxable = Math.round((displayServiceTotal / 1.05) * 100) / 100;
+    const row2Taxable = Math.round((displayServiceTotal / 1.18) * 100) / 100;
     const row2Gst = Math.round((displayServiceTotal - row2Taxable) * 100) / 100;
 
     const taxBreakupTotalTaxable = Math.round((row1Taxable + row2Taxable) * 100) / 100;
@@ -847,7 +847,7 @@ function buildQuotationHTML(quotation, settings = {}) {
                                 <td class="td-center" style="font-weight: 700; color: #475569;">1</td>
                                 <td style="font-weight: 700; color: #0f172a;">Panel + Inverter + Battery (Total Amount)</td>
                                 <td class="td-right" style="font-family: monospace; font-weight: 700;">₹${row1Taxable.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
-                                <td class="td-center" style="font-weight: 700;">18%</td>
+                                <td class="td-center" style="font-weight: 700;">5%</td>
                                 <td class="td-right" style="font-family: monospace; font-weight: 700;">₹${row1Gst.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
                                 <td class="td-right" style="font-family: monospace; font-weight: 800;">₹${displayProductTotal.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
                             </tr>
@@ -855,7 +855,7 @@ function buildQuotationHTML(quotation, settings = {}) {
                                 <td class="td-center" style="font-weight: 700; color: #475569;">2</td>
                                 <td style="font-weight: 700; color: #0f172a;">EPC & Installation (Total Amount)</td>
                                 <td class="td-right" style="font-family: monospace; font-weight: 700;">₹${row2Taxable.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
-                                <td class="td-center" style="font-weight: 700;">5%</td>
+                                <td class="td-center" style="font-weight: 700;">18%</td>
                                 <td class="td-right" style="font-family: monospace; font-weight: 700;">₹${row2Gst.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
                                 <td class="td-right" style="font-family: monospace; font-weight: 800;">₹${displayServiceTotal.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
                             </tr>
