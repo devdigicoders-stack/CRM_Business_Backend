@@ -17,8 +17,10 @@ app.use(cors());
 app.use(express.json({ limit: "25mb" }));
 app.use(express.urlencoded({ limit: "25mb", extended: true }));
 
-// Serve uploads folder statically so frontend can access images
+// Serve uploads and public folders statically
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
+app.use("/public", express.static(path.join(__dirname, "public")));
+app.use(express.static(path.join(__dirname, "public")));
 
 // Import Routes
 const authRoutes = require("./routes/authRoutes");

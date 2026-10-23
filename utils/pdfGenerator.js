@@ -23,11 +23,23 @@ function buildQuotationHTML(quotation, settings = {}) {
     try {
         const path = require('path');
         const fs = require('fs');
-        const headerPath = path.join(__dirname, '../uploads/quotation_header.png');
+        let headerPath = path.join(__dirname, '../public/image.png');
+        if (!fs.existsSync(headerPath)) {
+            headerPath = path.join(__dirname, '../uploads/image.png');
+        }
+        if (!fs.existsSync(headerPath)) {
+            headerPath = path.join(__dirname, '../public/quotation_header.png');
+        }
         if (fs.existsSync(headerPath)) {
             headerImageBase64 = `data:image/png;base64,${fs.readFileSync(headerPath).toString('base64')}`;
         }
-        const signaturePath = path.join(__dirname, '../uploads/quotation_signature.png');
+        let signaturePath = path.join(__dirname, '../public/image copy 2.png');
+        if (!fs.existsSync(signaturePath)) {
+            signaturePath = path.join(__dirname, '../uploads/image copy 2.png');
+        }
+        if (!fs.existsSync(signaturePath)) {
+            signaturePath = path.join(__dirname, '../uploads/quotation_signature.png');
+        }
         if (fs.existsSync(signaturePath)) {
             signatureImageBase64 = `data:image/png;base64,${fs.readFileSync(signaturePath).toString('base64')}`;
         }
@@ -249,7 +261,9 @@ function buildQuotationHTML(quotation, settings = {}) {
         /* 3. BILL TO */
         .bill-to-row {
             margin-top: 10px;
-            margin-bottom: 8px;
+            margin-bottom: 12px;
+            padding-bottom: 8px;
+            border-bottom: 1.5px solid #1e293b;
             font-size: 13px;
             color: #0f172a;
         }
@@ -405,18 +419,18 @@ function buildQuotationHTML(quotation, settings = {}) {
 
         /* 6. TAX BREAKUP TABLE */
         .tax-breakup-section {
-            margin-top: 12px;
+            margin-top: 9px;
         }
         .tax-header {
             background: linear-gradient(90deg, #00487C 0%, #06606A 50%, #0E8558 100%);
             color: #ffffff;
-            font-size: 11px;
+            font-size: 10.5px;
             font-weight: 900;
             text-transform: uppercase;
-            padding: 6px 12px;
+            padding: 4.5px 12px;
             border-top-left-radius: 4px;
             border-top-right-radius: 4px;
-            letter-spacing: 0.6px;
+            letter-spacing: 0.5px;
         }
         .tax-table-container {
             border: 1.5px solid #334155;
@@ -428,7 +442,7 @@ function buildQuotationHTML(quotation, settings = {}) {
         .tax-table {
             width: 100%;
             border-collapse: collapse;
-            font-size: 11px;
+            font-size: 10px;
             background: #ffffff;
         }
         .tax-table thead th {
@@ -436,11 +450,11 @@ function buildQuotationHTML(quotation, settings = {}) {
             color: #000000;
             font-weight: 900;
             text-align: center;
-            border-bottom: 2px solid #1e293b;
+            border-bottom: 1.5px solid #1e293b;
             border-right: 1.5px solid #334155;
-            padding: 8px 6px;
-            font-size: 11px;
-            line-height: 1.25;
+            padding: 6px 6px;
+            font-size: 10.5px;
+            line-height: 1.2;
             vertical-align: middle;
         }
         .tax-table thead th:last-child {
@@ -449,15 +463,16 @@ function buildQuotationHTML(quotation, settings = {}) {
         .tax-table tbody td {
             border-bottom: 1px solid #64748b;
             border-right: 1.5px solid #334155;
-            padding: 6px 8px;
-            font-size: 10.5px;
+            padding: 4.5px 8px;
+            font-size: 10px;
+            line-height: 1.25;
             vertical-align: middle;
         }
         .tax-table tbody td:last-child {
             border-right: none;
         }
         .tax-table tbody tr.empty-tax-row td {
-            height: 28px;
+            height: 22px;
             background: #ffffff;
         }
         .tax-table tbody tr:last-child td {
@@ -471,8 +486,9 @@ function buildQuotationHTML(quotation, settings = {}) {
         }
         .tax-table tfoot td {
             border-right: 1.5px solid #334155;
-            padding: 7px 8px;
-            font-size: 11px;
+            padding: 5px 8px;
+            font-size: 10.5px;
+            line-height: 1.25;
             vertical-align: middle;
         }
         .tax-table tfoot td:last-child {
@@ -714,7 +730,7 @@ function buildQuotationHTML(quotation, settings = {}) {
         <div>
             <!-- 1. OFFICIAL TRUST HEADER BANNER WITH DYNAMIC ESTIMATE & DATE -->
             <div class="header-banner-box">
-                <img src="${headerImageBase64 || '/uploads/quotation_header.png'}" alt="Ram Milan Singh Charitable Trust" class="header-banner-img">
+                <img src="${headerImageBase64 || '/public/image.png'}" alt="Ram Milan Singh Charitable Trust" class="header-banner-img">
                 <div class="banner-overlay-no">${qNumber}</div>
                 <div class="banner-overlay-date">${qDate}</div>
             </div>
@@ -963,7 +979,7 @@ function buildQuotationHTML(quotation, settings = {}) {
                 <div class="signatory-column">
                     <div class="sign-for-label">For : Ram Milan Singh Charitable Trust</div>
                     <div class="sign-img-wrap">
-                        <img src="${signatureImageBase64 || '/uploads/quotation_signature.png'}" alt="Managing Trustee Signature" class="sign-official-img">
+                        <img src="${signatureImageBase64 || '/public/image%20copy%202.png'}" alt="Managing Trustee Signature" class="sign-official-img">
                     </div>
                     <div class="sign-hr-line"></div>
                     <div class="sign-auth-label">Authorized Signatory</div>
