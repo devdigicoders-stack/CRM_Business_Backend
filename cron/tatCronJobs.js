@@ -19,6 +19,7 @@ const runTATBreachCheckNow = async () => {
             dueDate: { $lt: now }
         })
             .populate('assignedTo')
+            .populate('department')
             .populate('project');
 
         for (let task of overdueTasks) {
@@ -36,27 +37,106 @@ const runTATBreachCheckNow = async () => {
             }
 
             // Send Overdue Email if not sent yet
-            if (!task.tatBreachEmailSent && task.assignedTo && task.assignedTo.email) {
+            if (!task.tatBreachEmailSent) {
                 try {
-                    console.log(`[TAT Breach] Sending email to Employee: ${task.assignedTo.email} for task "${task.taskName}"...`);
-                    const customerInfo = task.project?.customerName ? ` for Project: "${task.project.customerName}"` : '';
-                    
-                    const success = await sendEmail({
-                        email: task.assignedTo.email,
-                        subject: `TAT Breached: Task "${task.taskName}" is Overdue!`,
-                        message: `Hello ${task.assignedTo.name},\n\nYour assigned task "${task.taskName}"${customerInfo} has breached its TAT (Turn Around Time) deadline (${new Date(task.dueDate).toLocaleString()}).\n\nPlease complete and submit all required documents immediately to avoid workflow delays.\n\nCRM Automation`
-                    });
+                    const superAdminEmail = process.env.ADMIN_EMAIL || process.env.Email || "digitalgurucse@gmail.com";
+                    const customerName = task.project?.customerName || 'N/A';
+                    const assignedName = task.assignedTo?.name || 'Unassigned / Unknown';
+                    const assignedEmail = task.assignedTo?.email || 'N/A';
+                    const assignedPhone = task.assignedTo?.phone || '';
+                    const departmentName = task.department?.name || 'Operations';
+                    const stepNum = task.stepNumber || 1;
 
-                    if (success) {
+                    // Calculate overdue duration
+                    const overdueMs = Math.max(0, now - new Date(task.dueDate));
+                    const overdueHours = Math.floor(overdueMs / (1000 * 60 * 60));
+                    const overdueMinutes = Math.floor((overdueMs % (1000 * 60 * 60)) / (1000 * 60));
+                    const overdueDurationText = overdueHours >= 24 
+                        ? `${Math.floor(overdueHours / 24)} Din ${overdueHours % 24} Ghante`
+                        : `${overdueHours} Ghante ${overdueMinutes} Minute`;
+
+                    const recipients = [superAdminEmail];
+                    if (task.assignedTo?.email && !recipients.includes(task.assignedTo.email)) {
+                        recipients.push(task.assignedTo.email);
+                    }
+
+                    console.log(`[TAT Breach] Sending Overdue email to: ${recipients.join(', ')} for task "${task.taskName}" (Assigned To: ${assignedName})...`);
+                    
+                    let anySuccess = false;
+                    for (const recipient of recipients) {
+                        const isSuperAdmin = (recipient === superAdminEmail);
+
+                        const subject = isSuperAdmin
+                            ? `⚠️ Overdue Alert: Task "${task.taskName}" (${assignedName} ka task pending hai)`
+                            : `TAT Breached: Task "${task.taskName}" is Overdue!`;
+
+                        const plainTextMessage = isSuperAdmin
+                            ? `Hello Super Admin,\n\nCRM me ek task ki deadline breach ho gayi hai aur yeh task abhi tak submit/complete nahi hua hai.\n\n========================================\nDETAILS:\n- Kiska Task Pending Hai: ${assignedName} (${assignedEmail})\n${assignedPhone ? `- Contact Number: ${assignedPhone}\n` : ''}- Task Name: ${task.taskName} (Step ${stepNum})\n- Project / Customer: ${customerName}\n- Department: ${departmentName}\n- Due Date: ${new Date(task.dueDate).toLocaleString()}\n- Overdue Duration: ${overdueDurationText}\n- Current Status: OVERDUE\n========================================\n\nKripya employee ${assignedName} se sampark karein ya CRM Dashboard par check karein.\n\nRAM MILAN SINGH`
+                            : `Hello ${assignedName},\n\nYour assigned task "${task.taskName}" for project "${customerName}" has breached its TAT deadline (${new Date(task.dueDate).toLocaleString()}).\nOverdue Time: ${overdueDurationText}.\n\nPlease complete and submit all required documents immediately to avoid workflow delays.\n\nRAM MILAN SINGH`;
+
+                        const htmlMessage = isSuperAdmin
+                            ? `<h3 style="color: #dc2626; margin-top: 0;">⚠️ Task Overdue Alert (TAT Breached)</h3>
+                               <p>Hello Super Admin,</p>
+                               <p>CRM me ek task ki deadline breach ho gayi hai aur yeh task abhi tak submit/complete nahi hua hai:</p>
+                               <table style="width: 100%; border-collapse: collapse; margin: 15px 0; font-size: 14px;">
+                                   <tr style="border-bottom: 1px solid #f1f5f9;">
+                                       <td style="padding: 8px 0; font-weight: bold; color: #475569; width: 40%;">👤 Kiska Task Pending Hai:</td>
+                                       <td style="padding: 8px 0; font-weight: bold; color: #0f172a;">${assignedName} (${assignedEmail})</td>
+                                   </tr>
+                                   ${assignedPhone ? `<tr style="border-bottom: 1px solid #f1f5f9;">
+                                       <td style="padding: 8px 0; font-weight: bold; color: #475569;">📞 Contact Number:</td>
+                                       <td style="padding: 8px 0; color: #0f172a;">${assignedPhone}</td>
+                                   </tr>` : ''}
+                                   <tr style="border-bottom: 1px solid #f1f5f9;">
+                                       <td style="padding: 8px 0; font-weight: bold; color: #475569;">📋 Task Name:</td>
+                                       <td style="padding: 8px 0; color: #0f172a; font-weight: 600;">${task.taskName} (Step ${stepNum})</td>
+                                   </tr>
+                                   <tr style="border-bottom: 1px solid #f1f5f9;">
+                                       <td style="padding: 8px 0; font-weight: bold; color: #475569;">🏢 Customer / Project:</td>
+                                       <td style="padding: 8px 0; color: #0f172a;">${customerName}</td>
+                                   </tr>
+                                   <tr style="border-bottom: 1px solid #f1f5f9;">
+                                       <td style="padding: 8px 0; font-weight: bold; color: #475569;">🏷️ Department:</td>
+                                       <td style="padding: 8px 0; color: #0f172a;">${departmentName}</td>
+                                   </tr>
+                                   <tr style="border-bottom: 1px solid #f1f5f9;">
+                                       <td style="padding: 8px 0; font-weight: bold; color: #475569;">⏰ Due Date:</td>
+                                       <td style="padding: 8px 0; color: #dc2626; font-weight: 600;">${new Date(task.dueDate).toLocaleString()}</td>
+                                   </tr>
+                                   <tr style="border-bottom: 1px solid #f1f5f9;">
+                                       <td style="padding: 8px 0; font-weight: bold; color: #475569;">⏳ Overdue Time:</td>
+                                       <td style="padding: 8px 0; color: #dc2626; font-weight: bold;">${overdueDurationText}</td>
+                                   </tr>
+                                   <tr>
+                                       <td style="padding: 8px 0; font-weight: bold; color: #475569;">📌 Current Status:</td>
+                                       <td style="padding: 8px 0;"><span style="background-color: #fee2e2; color: #991b1b; padding: 2px 8px; border-radius: 4px; font-weight: bold; font-size: 12px;">OVERDUE</span></td>
+                                   </tr>
+                               </table>
+                               <p style="margin-top: 15px; font-size: 13px; color: #64748b;">Kripya employee <b>${assignedName}</b> se sampark karein ya CRM Dashboard par check karein.</p>`
+                            : null;
+
+                        const success = await sendEmail({
+                            email: recipient,
+                            subject,
+                            message: plainTextMessage,
+                            html: htmlMessage
+                        });
+
+                        if (success) {
+                            anySuccess = true;
+                            console.log(`[Success] Overdue email sent to: ${recipient}`);
+                        } else {
+                            console.log(`[Failed] Could not send overdue email to: ${recipient}`);
+                        }
+                    }
+
+                    if (anySuccess) {
                         task.tatBreachEmailSent = true;
                         needsSave = true;
                         breachEmailsSent++;
-                        console.log(`[Success] Overdue email sent to Employee: ${task.assignedTo.email}`);
-                    } else {
-                        console.log(`[Failed] Could not send email to Employee: ${task.assignedTo.email}. Will retry on next check.`);
                     }
                 } catch (err) {
-                    console.error(`[Error] Failed to send email to ${task.assignedTo.email}:`, err.message);
+                    console.error(`[Error] Failed to process overdue email for task "${task.taskName}":`, err.message);
                 }
             }
 
@@ -88,7 +168,7 @@ const runTATBreachCheckNow = async () => {
                             const success = await sendEmail({
                                 email: targetOpsHead.email,
                                 subject: `Action Required: Task "${task.taskName}" Pending Approval`,
-                                message: `Hello ${targetOpsHead.name},\n\nThe task "${task.taskName}"${customerInfo} was submitted ${Math.floor(diffHours)} hours ago and is awaiting your review.\n\nPlease log in to the CRM to approve or reject the submission.\n\nCRM Automation`
+                                message: `Hello ${targetOpsHead.name},\n\nThe task "${task.taskName}"${customerInfo} was submitted ${Math.floor(diffHours)} hours ago and is awaiting your review.\n\nPlease log in to the CRM to approve or reject the submission.\n\nRAM MILAN SINGH`
                             });
 
                             if (success) {
@@ -127,7 +207,7 @@ const runTATBreachCheckNow = async () => {
                                 const success = await sendEmail({
                                     email: project.operationHead.email,
                                     subject: `Delay Alert: Next Task Unassigned for Project "${project.customerName}"`,
-                                    message: `Hello ${project.operationHead.name},\n\nThe previous task for project "${project.customerName}" was approved over 24 hours ago, but Step ${project.currentStep} has not been assigned yet. Please assign it immediately.\n\nCRM Automation`
+                                    message: `Hello ${project.operationHead.name},\n\nThe previous task for project "${project.customerName}" was approved over 24 hours ago, but Step ${project.currentStep} has not been assigned yet. Please assign it immediately.\n\nRAM MILAN SINGH`
                                 });
                                 if (success) {
                                     delayAlertsSent++;

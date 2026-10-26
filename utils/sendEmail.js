@@ -3,15 +3,15 @@ const Settings = require('../models/Settings');
 
 const sendEmail = async (options) => {
     try {
-        // Fetch company name from Settings (dynamically)
-        let companyName = process.env.COMPANY_NAME || 'DigiCoders CRM';
+        // Fetch company name from environment or Settings (defaults to RAM MILAN SINGH)
+        let companyName = process.env.COMPANY_NAME || 'RAM MILAN SINGH';
         try {
             const settings = await Settings.findOne();
-            if (settings && settings.companyName) {
+            if (settings && settings.companyName && !process.env.COMPANY_NAME) {
                 companyName = settings.companyName;
             }
         } catch (err) {
-            console.error("Error fetching settings for email:", err.message);
+            // Use environment or default if DB read is not ready
         }
 
         const senderEmail = process.env.EMAIL_USER;
