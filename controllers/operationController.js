@@ -881,4 +881,53 @@ exports.testEmail = async (req, res) => {
     }
 };
 
+exports.getProjectReceiptData = async (req, res) => {
+    try {
+        const Project = require("../models/Project");
+        const Quotation = require("../models/Quotation");
+        const Payment = require("../models/Payment");
+        const Settings = require("../models/Settings");
+
+        const project = await Project.findById(req.params.id)
+            .populate({
+                path: "lead",
+                select: "customerName companyName contactNumber email address location"
+            })
+            .populate("operationHead", "name email phone")
+            .populate("assignedTo", "name email")
+            .populate("quotation")
+            .lean();
+
+        if (!project) return res.status(404).json({ message: "Project not found" });
+
+        let quotation = project.quotation;
+        if (!quotation && project.lead) {
+            const leadId = project.lead._id || project.lead;
+            quotation = await Quotation.findOne({ lead: leadId, status: "Approved" }).sort({ createdAt: -1 }).lean();
+            if (!quotation) {
+                quotation = await Quotation.findOne({ lead: leadId }).sort({ createdAt: -1 }).lean();
+            }
+        }
+
+        const payment = await Payment.findOne({ project: project._id }).lean();
+        const settings = await Settings.findOne().lean();
+
+        res.status(200).json({
+            project: {
+                ...project,
+                quotationData: quotation,
+                paymentData: payment ? {
+                    totalAmount: payment.totalAmount,
+                    paidAmount: payment.paidAmount,
+                    balanceAmount: payment.balanceAmount,
+                    status: payment.status
+                } : null
+            },
+            settings
+        });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+};
+
 

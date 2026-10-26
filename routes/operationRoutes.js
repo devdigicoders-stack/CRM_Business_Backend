@@ -27,6 +27,8 @@ router.get("/projects", protect, authorizePermission("view_projects"), operation
 router.put("/projects/:id/workflow", protect, authorizePermission("manage_project_workflow"), operationController.forwardProjectWorkflow);
 // Get documents related to a project
 router.get("/projects/:id/documents", protect, authorizePermission("view_projects"), operationController.getProjectDocuments);
+// Get project receipt / invoice data (includes quotation, items, installed equipments with serial numbers)
+router.get("/projects/:id/receipt-data", operationController.getProjectReceiptData);
 
 // Save installed equipments / serial numbers (Admin/Ops Head/Hardware manager)
 router.put("/projects/:id/equipment", protect, authorizePermission(["manage_hardware", "manage_project_workflow"]), operationController.addInstalledEquipment);
