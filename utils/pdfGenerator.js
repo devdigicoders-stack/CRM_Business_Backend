@@ -17,7 +17,7 @@ function numberToWords(num) {
     return str.trim() + ' Only';
 }
 
-function buildQuotationHTML(quotation, settings = {}) {
+function buildQuotationHTML(quotation, settings = {}, options = {}) {
     let headerImageBase64 = '';
     let signatureImageBase64 = '';
     try {
@@ -83,6 +83,7 @@ function buildQuotationHTML(quotation, settings = {}) {
             idx: idx + 1,
             name: item.name || 'Component / Service',
             description: item.description || '',
+            serialNumber: item.serialNumber || '',
             qty,
             rate,
             gstPerc,
@@ -122,7 +123,7 @@ function buildQuotationHTML(quotation, settings = {}) {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=860, user-scalable=yes">
-    <title>Estimate - ${qNumber} - Ram Milan Singh Charitable Trust</title>
+    <title>${options.isInvoice ? 'Invoice & Certificate' : 'Estimate'} - ${qNumber} - Ram Milan Singh Charitable Trust</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
@@ -712,8 +713,8 @@ function buildQuotationHTML(quotation, settings = {}) {
     <!-- Top Action Toolbar -->
     <div class="action-toolbar">
         <div>
-            <h2>Ram Milan Singh Charitable Trust — Official Estimate</h2>
-            <p>Estimate Reference: <strong>${qNumber}</strong> | Date: ${qDate}</p>
+            <h2>Ram Milan Singh Charitable Trust — ${options.isInvoice ? 'Official Invoice & Certificate' : 'Official Estimate'}</h2>
+            <p>${options.isInvoice ? 'Invoice Reference' : 'Estimate Reference'}: <strong>${qNumber}</strong> | Date: ${qDate}</p>
         </div>
         <div style="display: flex; gap: 10px; align-items: center;">
             <button class="whatsapp-btn" onclick="shareOnWhatsApp()">
@@ -765,6 +766,11 @@ function buildQuotationHTML(quotation, settings = {}) {
                                 <td class="td-center" style="font-weight: 700; color: #475569;">${item.idx}</td>
                                 <td>
                                     <div class="item-title">${item.name}</div>
+                                    ${item.serialNumber ? `
+                                    <div class="item-serial-tag" style="display: inline-flex; align-items: center; gap: 4px; background: #e0f2fe; color: #0369a1; font-family: monospace; font-size: 11px; font-weight: 800; padding: 2px 8px; border-radius: 4px; border: 1px solid #bae6fd; margin-top: 4px; letter-spacing: 0.5px;">
+                                        <span style="color: #0284c7; font-weight: 900;">S/N:</span> ${item.serialNumber}
+                                    </div>
+                                    ` : ''}
                                     ${item.description ? `<div class="item-desc">${item.description}</div>` : ''}
                                 </td>
                                 <td class="td-center" style="font-weight: 800;">${item.qty}</td>

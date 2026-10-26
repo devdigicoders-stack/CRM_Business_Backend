@@ -930,4 +930,93 @@ exports.getProjectReceiptData = async (req, res) => {
     }
 };
 
+exports.renderProjectInvoiceHTML = async (req, res) => {
+    try {
+        const Project = require("../models/Project");
+        const Quotation = require("../models/Quotation");
+        const Payment = require("../models/Payment");
+        const Settings = require("../models/Settings");
+        const { buildQuotationHTML } = require("../utils/pdfGenerator");
+
+        const project = await Project.findById(req.params.id)
+            .populate({
+                path: "lead",
+                select: "customerName companyName contactNumber email address location"
+            })
+            .lean();
+
+        if (!project) {
+            return res.status(404).send("<h3 style='text-align:center;padding:50px;'>Project Not Found</h3>");
+        }
+
+        let quotation = null;
+        if (project.lead) {
+            const leadId = project.lead._id || project.lead;
+            quotation = await Quotation.findOne({ lead: leadId, status: "Approved" }).sort({ createdAt: -1 }).lean();
+            if (!quotation) {
+                quotation = await Quotation.findOne({ lead: leadId }).sort({ createdAt: -1 }).lean();
+            }
+        }
+
+        const payment = await Payment.findOne({ project: project._id }).lean();
+        const settings = await Settings.findOne().lean();
+
+        const quotationItems = quotation?.items || [];
+        const installedEquipments = project.installedEquipments || [];
+
+        let combinedItems = [];
+        if (quotationItems.length > 0) {
+            combinedItems = quotationItems.map((item, idx) => {
+                const match = installedEquipments.find(eq =>
+                    eq.itemName && item.name && (
+                        eq.itemName.trim().toLowerCase() === item.name.trim().toLowerCase() ||
+                        item.name.toLowerCase().includes(eq.itemName.toLowerCase()) ||
+                        eq.itemName.toLowerCase().includes(item.name.toLowerCase())
+                    )
+                ) || installedEquipments[idx];
+
+                return {
+                    name: item.name || 'Component / Service',
+                    description: item.description || '',
+                    serialNumber: match?.serialNumber || '',
+                    quantity: Number(item.quantity || 1),
+                    price: Number(item.price || 0),
+                    gstPercentage: Number(item.gstPercentage !== undefined ? item.gstPercentage : 18),
+                    itemType: item.itemType || 'Product'
+                };
+            });
+        } else if (installedEquipments.length > 0) {
+            combinedItems = installedEquipments.map(eq => ({
+                name: eq.itemName,
+                description: '',
+                serialNumber: eq.serialNumber,
+                quantity: Number(eq.quantity || 1),
+                price: 0,
+                gstPercentage: 12,
+                itemType: 'Product'
+            }));
+        }
+
+        const invNumber = quotation?.quotationNumber 
+            ? quotation.quotationNumber.replace('QTN-', 'INV-')
+            : `INV-${project._id.toString().slice(-6).toUpperCase()}`;
+
+        const docData = {
+            quotationNumber: invNumber,
+            createdAt: project.endDate || project.updatedAt || Date.now(),
+            lead: project.lead || { customerName: project.customerName },
+            items: combinedItems,
+            totalAmount: Number(payment?.totalAmount || quotation?.totalAmount || 191300)
+        };
+
+        const html = buildQuotationHTML(docData, settings, { isInvoice: true });
+        res.setHeader("Content-Type", "text/html; charset=utf-8");
+        return res.send(html);
+    } catch (err) {
+        console.error("Error serving Project Invoice HTML:", err);
+        return res.status(500).send("<h3>Internal Error rendering Invoice HTML</h3>");
+    }
+};
+
+
 

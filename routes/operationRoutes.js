@@ -29,6 +29,8 @@ router.put("/projects/:id/workflow", protect, authorizePermission("manage_projec
 router.get("/projects/:id/documents", protect, authorizePermission("view_projects"), operationController.getProjectDocuments);
 // Get project receipt / invoice data (includes quotation, items, installed equipments with serial numbers)
 router.get("/projects/:id/receipt-data", operationController.getProjectReceiptData);
+// View project receipt / invoice as official dynamic HTML
+router.get("/projects/:id/view-html", operationController.renderProjectInvoiceHTML);
 
 // Save installed equipments / serial numbers (Admin/Ops Head/Hardware manager)
 router.put("/projects/:id/equipment", protect, authorizePermission(["manage_hardware", "manage_project_workflow"]), operationController.addInstalledEquipment);
