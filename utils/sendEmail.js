@@ -14,19 +14,27 @@ const sendEmail = async (options) => {
             console.error("Error fetching settings for email:", err.message);
         }
 
-        // You can configure your email provider here
+        const senderEmail = process.env.EMAIL_USER;
+        const senderPass = process.env.EMAIL_PASS;
+
+        if (!senderEmail || !senderPass) {
+            console.error("[Email Error] EMAIL_USER or EMAIL_PASS is missing in environment variables.");
+            return false;
+        }
+
+        // Configure Gmail SMTP transporter
         const transporter = nodemailer.createTransport({
-            service: 'gmail', // or any other service like smtp.mailtrap.io
+            service: 'gmail',
             auth: {
-                user: process.env.EMAIL_USER || 'your-email@gmail.com', // Need to set in .env
-                pass: process.env.EMAIL_PASS || 'your-app-password'
+                user: senderEmail,
+                pass: senderPass
             }
         });
 
-        console.log(`[Email Config] Using email account: ${process.env.EMAIL_USER}`);
+        console.log(`[Email Config] Preparing to send email via: ${senderEmail}`);
         
         // Convert \n to <br> for HTML emails
-        const formattedMessage = options.message.replace(/\n/g, '<br>');
+        const formattedMessage = options.message ? options.message.replace(/\n/g, '<br>') : '';
         
         // Professional Email Template
         const defaultHtml = `
@@ -43,8 +51,9 @@ const sendEmail = async (options) => {
             </div>
         `;
 
+        // Using authenticated sender in From header is strictly required by Gmail
         const mailOptions = {
-            from: `${companyName} <no-reply@crm.com>`,
+            from: `"${companyName}" <${senderEmail}>`,
             to: options.email,
             subject: options.subject,
             text: options.message,
@@ -52,10 +61,10 @@ const sendEmail = async (options) => {
         };
 
         const info = await transporter.sendMail(mailOptions);
-        console.log(`Email sent to ${options.email} - Message ID: ${info.messageId}`);
+        console.log(`[Email Success] Email sent to ${options.email} - Message ID: ${info.messageId}`);
         return true;
     } catch (error) {
-        console.error('Error sending email:', error);
+        console.error('[Email Error] Failed to send email to ' + options.email + ':', error.message || error);
         return false;
     }
 };

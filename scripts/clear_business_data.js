@@ -37,6 +37,7 @@ async function clearBusinessData() {
         const customerRoleId = customerRole ? customerRole._id : null;
 
         const preserveEmails = [
+            "digitalgurucse@gmail.com",
             "admin@digicoders.com",
             "shbm71194@gmail.com",
             "abc@gmal.com",

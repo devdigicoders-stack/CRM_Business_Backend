@@ -291,6 +291,9 @@ exports.assignMultipleTasks = async (req, res) => {
             task.assignedAt = new Date();
             task.dueDate = dueDate;
             task.status = "In Progress";
+            task.isTATBreached = false;
+            task.tatBreachEmailSent = false;
+            task.approvalReminderSent = false;
 
             if (item.referenceDocuments && Array.isArray(item.referenceDocuments) && item.referenceDocuments.length > 0) {
                 task.referenceDocuments = item.referenceDocuments;
@@ -339,6 +342,9 @@ exports.assignTask = async (req, res) => {
         task.assignedAt = new Date();
         task.dueDate = dueDate;
         task.status = "In Progress";
+        task.isTATBreached = false;
+        task.tatBreachEmailSent = false;
+        task.approvalReminderSent = false;
         
         // Add reference documents if provided
         if (req.body.referenceDocuments && Array.isArray(req.body.referenceDocuments)) {
@@ -366,6 +372,8 @@ exports.getTasks = async (req, res) => {
         const userId = req.user._id || req.user.id;
         const User = require("../models/User");
 
+        const isAdminOrOps = userRole === "Admin" || userRole === "Operation Head";
+
         if (userRole === "Customer") {
             const userEmail = req.user.email;
             const leads = await Lead.find({ email: userEmail }).select("_id");
@@ -373,80 +381,59 @@ exports.getTasks = async (req, res) => {
             const projects = await Project.find({ lead: { $in: leadIds } }).select("_id");
             const projectIds = projects.map(p => p._id);
             filter.project = { $in: projectIds };
-        } else if (userRole === "Admin" || userRole === "Operation Head") {
-            // Admin and Ops Head see all tasks
+        } else if (isAdminOrOps) {
+            // Admin and Ops Head see all tasks, or filter by project
             if (req.query.projectId || req.query.project) {
                 filter.project = req.query.projectId || req.query.project;
             }
         } else {
-            // For other roles (Sales Manager, Sales Executive, Employee, Technicians, etc.):
-            // 1. Direct tasks assigned to this user / subordinates
-            // 2. Tasks for projects where this user is assignedTo or operationHead
-            // 3. Tasks for projects linked to leads assigned to or created by this user
+            // Staff / Employees / Technicians / Sales Managers:
             const children = await User.find({ reportingManager: userId }).select("_id");
             const relevantUserIds = [userId, ...children.map(u => u._id)];
 
-            // Find leads assigned to or created by relevant users
-            const leads = await Lead.find({
-                $or: [
-                    { createdBy: { $in: relevantUserIds } },
-                    { assignedTo: { $in: relevantUserIds } }
-                ]
-            }).select("_id");
-            const leadIds = leads.map(l => l._id);
-
-            // Find projects where user/subordinates have assigned tasks
-            const userTasks = await Task.find({ assignedTo: { $in: relevantUserIds } }).select("project");
-            const taskProjectIds = userTasks.map(t => t.project).filter(Boolean);
-
-            // Find projects linked to those leads, OR projects directly assigned to relevant users, OR projects where user has tasks
-            const projects = await Project.find({
-                $or: [
-                    { lead: { $in: leadIds } },
-                    { operationHead: { $in: relevantUserIds } },
-                    { assignedTo: { $in: relevantUserIds } },
-                    { _id: { $in: taskProjectIds } }
-                ]
-            }).select("_id");
-            const projectIds = projects.map(p => p._id);
-
-            const orConditions = [
-                { assignedTo: { $in: relevantUserIds } }
-            ];
-
-            if (projectIds.length > 0) {
-                orConditions.push({ project: { $in: projectIds } });
-            }
-
-            if (req.query.projectId || req.query.project) {
-                const requestedProj = req.query.projectId || req.query.project;
-                filter = {
-                    $and: [
-                        { project: requestedProj },
-                        { $or: orConditions }
-                    ]
-                };
+            const requestedProj = req.query.projectId || req.query.project;
+            if (requestedProj) {
+                // If viewing inside a project modal:
+                filter.project = requestedProj;
+                // If employee does not have project management permissions, show only their assigned tasks in this project
+                const hasProjectPerm = req.user.role?.permissions?.includes("manage_project_workflow") || req.user.role?.permissions?.includes("create_task");
+                if (!hasProjectPerm) {
+                    filter.assignedTo = { $in: relevantUserIds };
+                }
             } else {
-                filter.$or = orConditions;
+                // In General Tasks View (/tasks or /dashboard):
+                // Employee MUST ONLY see tasks assigned to them / their reportees:
+                filter.assignedTo = { $in: relevantUserIds };
             }
         }
 
         // ================= STATUS FILTERING =================
-        // Assigned employees should only see OPEN tasks. Completed & Approved tasks must be hidden.
         const isProjectSpecific = Boolean(req.query.projectId || req.query.project);
-        const isAdminOrOps = userRole === "Admin" || userRole === "Operation Head";
 
         let statusCondition = null;
         if (req.query.status) {
             const st = req.query.status.toLowerCase();
             if (st === 'open') {
-                statusCondition = { status: { $nin: ["Completed", "Approved"] } };
+                if (isAdminOrOps) {
+                    // Admin & Ops Head need to see Submitted tasks to approve them
+                    statusCondition = { status: { $nin: ["Completed", "Approved"] } };
+                } else {
+                    // For assigned employee: tasks they need to work on (hide Submitted, Completed, Approved)
+                    statusCondition = { status: { $in: ["Pending", "In Progress", "Rejected", "Overdue"] } };
+                }
+            } else if (st === 'completed') {
+                if (isAdminOrOps) {
+                    statusCondition = { status: { $in: ["Completed", "Approved"] } };
+                } else {
+                    // For assigned employee: Submitted, Completed, Approved are all considered finished from their side
+                    statusCondition = { status: { $in: ["Submitted", "Completed", "Approved"] } };
+                }
             } else if (st !== 'all') {
                 statusCondition = { status: req.query.status };
             }
         } else if (!isProjectSpecific && !isAdminOrOps && req.query.includeCompleted !== 'true') {
-            // Default for assigned staff/employees: ONLY OPEN TASKS (hide Completed and Approved tasks)
-            statusCondition = { status: { $nin: ["Completed", "Approved"] } };
+            // Default for staff/employees when no status query: ONLY show tasks needing action
+            statusCondition = { status: { $in: ["Pending", "In Progress", "Rejected", "Overdue"] } };
         }
 
         if (statusCondition) {
@@ -546,6 +533,8 @@ exports.approveTask = async (req, res) => {
             const tatHours = parseFloat(task.tatHours) || 24;
             task.dueDate = new Date(Date.now() + (tatHours * 60 * 60 * 1000));
             task.isTATBreached = false; // Reset breach flag so they can get a new warning mail
+            task.tatBreachEmailSent = false;
+            task.approvalReminderSent = false;
         } else {
             task.status = "Completed";
             task.approvedAt = new Date();
@@ -859,4 +848,37 @@ exports.selectProjectTasks = async (req, res) => {
         res.status(500).json({ error: err.message });
     }
 };
+
+// ================= TEST & MANUAL CRON TRIGGER ENDPOINTS =================
+exports.triggerTATBreachCheck = async (req, res) => {
+    try {
+        const { runTATBreachCheckNow } = require("../cron/tatCronJobs");
+        const result = await runTATBreachCheckNow();
+        res.status(200).json({ message: "TAT Breach check executed successfully", result });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+};
+
+exports.testEmail = async (req, res) => {
+    try {
+        const { email } = req.body;
+        const targetEmail = email || req.user?.email || process.env.EMAIL_USER;
+        const sendEmail = require("../utils/sendEmail");
+        const success = await sendEmail({
+            email: targetEmail,
+            subject: "CRM Email Notification Test",
+            message: `Hello,\n\nThis is a verification email from your CRM system.\nIf you received this, your SMTP email settings are working perfectly!\n\nTimestamp: ${new Date().toLocaleString()}\n\nCRM Automation`
+        });
+
+        if (success) {
+            res.status(200).json({ success: true, message: `Test email sent successfully to ${targetEmail}` });
+        } else {
+            res.status(500).json({ success: false, message: `Failed to send email to ${targetEmail}. Please check EMAIL_USER and EMAIL_PASS in backend .env` });
+        }
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+};
+
 

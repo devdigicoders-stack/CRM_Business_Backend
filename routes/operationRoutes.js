@@ -57,4 +57,8 @@ router.put("/tasks/:id/approve", protect, authorizePermission("manage_project_wo
 // Add TAT Remark for Overdue Tasks (Manager/Ops Head Only)
 router.put("/tasks/:id/tat-remarks", protect, authorizePermission("add_task_remark"), operationController.addTATRemark);
 
+// TAT Cron Trigger & Email Verification Endpoints
+router.post("/tasks/trigger-tat-check", protect, operationController.triggerTATBreachCheck);
+router.post("/test-email", protect, operationController.testEmail);
+
 module.exports = router;

@@ -35,6 +35,8 @@ const taskSchema = new mongoose.Schema({
     
     // TAT Specific Fields
     isTATBreached: { type: Boolean, default: false }, // Will be set to true if completed past dueDate or currently past dueDate
+    tatBreachEmailSent: { type: Boolean, default: false }, // Tracks if overdue email was successfully sent
+    approvalReminderSent: { type: Boolean, default: false }, // Tracks if Ops Head was notified of submission
     tatRemarks: [taskRemarkSchema] // Reasons for TAT breach added by managers
 }, { timestamps: true });
 

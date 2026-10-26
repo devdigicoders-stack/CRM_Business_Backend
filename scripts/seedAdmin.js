@@ -13,19 +13,34 @@ const seedSuperAdmin = async () => {
             console.log("Admin Role Created Automatically!");
         }
 
-        // 2. Check if Super Admin User exists, otherwise create it
-        const adminEmail = "admin@digicoders.com";
-        const adminUser = await User.findOne({ email: adminEmail });
+        // 2. Check if Super Admin User exists, otherwise create it or update old admin email
+        const adminEmail = process.env.ADMIN_EMAIL || process.env.Email || "digitalgurucse@gmail.com";
+        const adminPassword = process.env.Password || "vivek@7068";
+        
+        let adminUser = await User.findOne({ email: adminEmail });
         
         if (!adminUser) {
-            await User.create({
-                name: "Super Admin",
-                email: adminEmail,
-                password: "706876", // Password changed as requested
-                role: adminRole._id,
-                profileImage: ""
-            });
-            console.log("Super Admin User Created Automatically!");
+            // Check if user with previous email exists, if so migrate to new email
+            const oldAdmin = await User.findOne({ email: "admin@digicoders.com" });
+            if (oldAdmin) {
+                oldAdmin.email = adminEmail;
+                oldAdmin.role = adminRole._id;
+                if (process.env.Password) {
+                    oldAdmin.password = adminPassword;
+                }
+                await oldAdmin.save();
+                console.log(`Super Admin email updated from admin@digicoders.com to ${adminEmail}`);
+                adminUser = oldAdmin;
+            } else {
+                await User.create({
+                    name: "Super Admin",
+                    email: adminEmail,
+                    password: adminPassword,
+                    role: adminRole._id,
+                    profileImage: ""
+                });
+                console.log(`Super Admin User (${adminEmail}) Created Successfully!`);
+            }
         }
 
     } catch (error) {
