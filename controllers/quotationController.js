@@ -132,7 +132,7 @@ exports.getQuotationById = async (req, res) => {
             .populate("lead", "customerName companyName contactNumber email status")
             .populate("createdBy", "name")
             .populate("approvedBy", "name")
-            .populate("items.itemId", "name productCode serviceCode description");
+            .populate("items.itemId", "name productCode serviceCode description warranty");
 
         if (!quotation) return res.status(404).json({ message: "Quotation not found" });
 
@@ -257,7 +257,7 @@ exports.getPublicQuotation = async (req, res) => {
             .populate("lead", "customerName companyName contactNumber email address location status")
             .populate("createdBy", "name email")
             .populate("approvedBy", "name")
-            .populate("items.itemId", "name productCode serviceCode description");
+            .populate("items.itemId", "name productCode serviceCode description warranty");
 
         // If not found by quotationNumber, fallback to _id if valid ObjectId
         if (!quotation && mongoose.Types.ObjectId.isValid(identifier)) {
@@ -265,7 +265,7 @@ exports.getPublicQuotation = async (req, res) => {
                 .populate("lead", "customerName companyName contactNumber email address location status")
                 .populate("createdBy", "name email")
                 .populate("approvedBy", "name")
-                .populate("items.itemId", "name productCode serviceCode description");
+                .populate("items.itemId", "name productCode serviceCode description warranty");
         }
 
         if (!quotation) {
@@ -293,14 +293,14 @@ exports.renderQuotationHTML = async (req, res) => {
             .populate("lead", "customerName companyName contactNumber email address location status")
             .populate("createdBy", "name email")
             .populate("approvedBy", "name")
-            .populate("items.itemId", "name productCode serviceCode description");
+            .populate("items.itemId", "name productCode serviceCode description warranty");
 
         if (!quotation && mongoose.Types.ObjectId.isValid(identifier)) {
             quotation = await Quotation.findById(identifier)
                 .populate("lead", "customerName companyName contactNumber email address location status")
                 .populate("createdBy", "name email")
                 .populate("approvedBy", "name")
-                .populate("items.itemId", "name productCode serviceCode description");
+                .populate("items.itemId", "name productCode serviceCode description warranty");
         }
 
         if (!quotation) {
@@ -335,14 +335,14 @@ exports.downloadPublicQuotationPDF = async (req, res) => {
             .populate("lead", "customerName companyName contactNumber email address location status")
             .populate("createdBy", "name email")
             .populate("approvedBy", "name")
-            .populate("items.itemId", "name productCode serviceCode description");
+            .populate("items.itemId", "name productCode serviceCode description warranty");
 
         if (!quotation && mongoose.Types.ObjectId.isValid(identifier)) {
             quotation = await Quotation.findById(identifier)
                 .populate("lead", "customerName companyName contactNumber email address location status")
                 .populate("createdBy", "name email")
                 .populate("approvedBy", "name")
-                .populate("items.itemId", "name productCode serviceCode description");
+                .populate("items.itemId", "name productCode serviceCode description warranty");
         }
 
         if (!quotation) {
@@ -406,14 +406,14 @@ exports.downloadPublicQuotationImage = async (req, res) => {
             .populate("lead", "customerName companyName contactNumber email address location status")
             .populate("createdBy", "name email")
             .populate("approvedBy", "name")
-            .populate("items.itemId", "name productCode serviceCode description");
+            .populate("items.itemId", "name productCode serviceCode description warranty");
 
         if (!quotation && mongoose.Types.ObjectId.isValid(identifier)) {
             quotation = await Quotation.findById(identifier)
                 .populate("lead", "customerName companyName contactNumber email address location status")
                 .populate("createdBy", "name email")
                 .populate("approvedBy", "name")
-                .populate("items.itemId", "name productCode serviceCode description");
+                .populate("items.itemId", "name productCode serviceCode description warranty");
         }
 
         if (!quotation) {

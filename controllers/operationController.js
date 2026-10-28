@@ -982,6 +982,7 @@ exports.renderProjectInvoiceHTML = async (req, res) => {
                     quantity: Number(item.quantity || 1),
                     price: Number(item.price || 0),
                     gstPercentage: Number(item.gstPercentage !== undefined ? item.gstPercentage : 18),
+                    warranty: item.warranty || '',
                     itemType: item.itemType || 'Product'
                 };
             });

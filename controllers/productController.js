@@ -3,7 +3,7 @@ const Product = require("../models/Product");
 // Create Product (Admin / with manage_products permission)
 exports.createProduct = async (req, res) => {
     try {
-        const { name, price, basePrice, description, itemType, gstPercentage, capacity, phase, kitComponents } = req.body;
+        const { name, price, basePrice, description, itemType, gstPercentage, capacity, phase, kitComponents, warranty } = req.body;
         if (!name || price === undefined || price === null || price === '') {
             return res.status(400).json({ message: "Name and price are required" });
         }
@@ -16,6 +16,7 @@ exports.createProduct = async (req, res) => {
             gstPercentage: gstPercentage !== undefined ? Number(gstPercentage) : 18,
             capacity: capacity || '',
             phase: phase || '',
+            warranty: warranty ? warranty.trim() : '',
             kitComponents: Array.isArray(kitComponents) ? kitComponents : []
         });
         res.status(201).json({ message: "Product created successfully", product });
@@ -37,7 +38,7 @@ exports.getProducts = async (req, res) => {
 // Update Product
 exports.updateProduct = async (req, res) => {
     try {
-        const { name, price, basePrice, description, itemType, gstPercentage, capacity, phase, kitComponents } = req.body;
+        const { name, price, basePrice, description, itemType, gstPercentage, capacity, phase, kitComponents, warranty } = req.body;
         const updateData = { 
             name, 
             price: Number(price), 
@@ -46,7 +47,8 @@ exports.updateProduct = async (req, res) => {
             itemType: itemType || 'Product', 
             gstPercentage: gstPercentage !== undefined ? Number(gstPercentage) : 18,
             capacity: capacity || '',
-            phase: phase || ''
+            phase: phase || '',
+            warranty: warranty !== undefined ? warranty.trim() : ''
         };
         if (kitComponents !== undefined) {
             updateData.kitComponents = Array.isArray(kitComponents) ? kitComponents : [];

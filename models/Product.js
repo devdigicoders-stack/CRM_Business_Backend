@@ -17,6 +17,7 @@ const productSchema = new mongoose.Schema({
     price: { type: Number, required: true },        // Selling Price
     gstPercentage: { type: Number, default: 18 },  // GST %
     description: { type: String, default: "" },
+    warranty: { type: String, default: "" },       // e.g. "25 Years", "05 Years"
     kitComponents: [kitComponentSchema],           // Array of included items if itemType is 'Kit'
     isActive: { type: Boolean, default: true }
 }, { timestamps: true });

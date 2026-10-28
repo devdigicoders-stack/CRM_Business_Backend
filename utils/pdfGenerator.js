@@ -23,7 +23,18 @@ function buildQuotationHTML(quotation, settings = {}, options = {}) {
     try {
         const path = require('path');
         const fs = require('fs');
-        let headerPath = path.join(__dirname, '../public/image copy 3.png');
+        let headerPath = '';
+        if (options && options.isInvoice) {
+            headerPath = path.join(__dirname, '../public/image copy 4.png');
+            if (!fs.existsSync(headerPath)) {
+                headerPath = path.join(__dirname, '../uploads/image copy 4.png');
+            }
+            if (!fs.existsSync(headerPath)) {
+                headerPath = path.join(__dirname, '../public/image copy 3.png');
+            }
+        } else {
+            headerPath = path.join(__dirname, '../public/image copy 3.png');
+        }
         if (!fs.existsSync(headerPath)) {
             headerPath = path.join(__dirname, '../public/image.png');
         }
@@ -124,6 +135,50 @@ function buildQuotationHTML(quotation, settings = {}, options = {}) {
     const taxBreakupTotalTaxable = Math.round((row1Taxable + row2Taxable) * 100) / 100;
     const taxBreakupTotalGst = Math.round((row1Gst + row2Gst) * 100) / 100;
 
+    // Dynamic Warranty Extraction from Quotation / Invoice Items
+    let warrantyList = [];
+    const seenWarranty = new Set();
+
+    (items || []).forEach(it => {
+        const w = (it.warranty || (it.itemId && it.itemId.warranty) || '').trim();
+        const nameLower = (it.name || '').toLowerCase();
+        if (w) {
+            let label = it.name;
+            if (nameLower.includes('panel')) label = 'Panel';
+            else if (nameLower.includes('inverter')) label = 'Inverter';
+            else if (nameLower.includes('battery')) label = 'Battery';
+            else if (nameLower.includes('structure')) label = 'Structure';
+            else if (nameLower.includes('wire')) label = 'Wiring / BOS';
+            
+            const key = label.toLowerCase();
+            if (!seenWarranty.has(key)) {
+                seenWarranty.add(key);
+                let durationText = w;
+                if (/^\d+$/.test(w)) {
+                    const n = parseInt(w, 10);
+                    durationText = `${n} ${n === 1 ? 'Year' : 'Years'}`;
+                }
+                warrantyList.push({ name: label, duration: durationText });
+            }
+        }
+    });
+
+    if (warrantyList.length === 0) {
+        const allText = items.map(i => (i.name || '') + ' ' + (i.description || '')).join(' ').toLowerCase();
+        if (allText.includes('panel') || allText.includes('solar kit') || allText.includes('rooftop')) {
+            warrantyList.push({ name: 'Panel', duration: '25 Years' });
+        }
+        if (allText.includes('inverter') || allText.includes('solar kit') || allText.includes('rooftop') || allText.includes('grid-tie')) {
+            warrantyList.push({ name: 'Inverter', duration: '05 Years' });
+        }
+        if (allText.includes('battery')) {
+            warrantyList.push({ name: 'Battery', duration: '05 Years' });
+        }
+        if (warrantyList.length === 0) {
+            warrantyList.push({ name: 'System Warranty', duration: '05 Years' });
+        }
+    }
+
     return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -215,16 +270,15 @@ function buildQuotationHTML(quotation, settings = {}, options = {}) {
         .a4-sheet {
             background: #ffffff;
             width: 830px;
-            min-height: 1123px;
+
             padding: 30px;
             border-radius: 8px;
             box-shadow: 0 10px 30px rgba(0,0,0,0.08);
             border: 1px solid #cbd5e1;
             display: flex;
             flex-direction: column;
-            justify-content: space-between;
+
         }
-        
         /* 1. OFFICIAL TRUST HEADER BANNER WITH DYNAMIC ESTIMATE & DATE */
         .header-banner-box {
             position: relative;
@@ -525,8 +579,8 @@ function buildQuotationHTML(quotation, settings = {}, options = {}) {
 
         /* 8. FOOTER SECTION (COMPACT & REDUCED HEIGHT) */
         .footer-section {
-            margin-top: 6px;
-            padding-top: 0;
+            margin-top: 15px;
+            padding-top: 12px;
             page-break-inside: avoid;
         }
         .footer-grid-3col {
@@ -719,7 +773,7 @@ function buildQuotationHTML(quotation, settings = {}, options = {}) {
     <!-- Top Action Toolbar -->
     <div class="action-toolbar">
         <div>
-            <h2>Ram Milan Singh Charitable Trust — ${options.isInvoice ? 'Official Invoice & Certificate' : 'Official Estimate'}</h2>
+            <h2>Ram Milan Singh Charitable Trust — ${options.isInvoice ? 'Official Invoice & Certificate' : 'Official Estimate'}</h2>
             <p>${options.isInvoice ? 'Invoice Reference' : 'Estimate Reference'}: <strong>${qNumber}</strong> | Date: ${qDate}</p>
         </div>
         <div style="display: flex; gap: 10px; align-items: center;">
@@ -727,7 +781,7 @@ function buildQuotationHTML(quotation, settings = {}, options = {}) {
                 💬 Share on WhatsApp
             </button>
             <button class="print-btn" onclick="window.print()">
-                🖨️ Print / Save as PDF
+                🖨️ Print / Save as PDF
             </button>
         </div>
     </div>
@@ -737,7 +791,7 @@ function buildQuotationHTML(quotation, settings = {}, options = {}) {
         <div>
             <!-- 1. OFFICIAL TRUST HEADER BANNER WITH DYNAMIC ESTIMATE & DATE -->
             <div class="header-banner-box">
-                <img src="${headerImageBase64 || '/public/image%20copy%203.png'}" alt="Ram Milan Singh Charitable Trust" class="header-banner-img">
+                <img src="${headerImageBase64 || (options && options.isInvoice ? '/public/image%20copy%204.png' : '/public/image%20copy%203.png')}" alt="Ram Milan Singh Charitable Trust" class="header-banner-img">
                 <div class="banner-overlay-no">${qNumber}</div>
                 <div class="banner-overlay-date">${qDate}</div>
             </div>
@@ -962,27 +1016,15 @@ function buildQuotationHTML(quotation, settings = {}, options = {}) {
                     </div>
                     <div class="info-card-body" style="padding: 0;">
                         <table class="warranty-table-grid">
+                            ${warrantyList.map((w, idx) => `
                             <tr>
-                                <td class="w-item">Panel</td>
-                                <td class="w-dur">
-                                    <strong style="color: #0f172a;">25 Years</strong><br>
-                                    <span class="w-sub">(as per manufacturer)</span>
+                                <td class="w-item" style="${idx === warrantyList.length - 1 ? 'border-bottom: none;' : ''}">${w.name}</td>
+                                <td class="w-dur" style="${idx === warrantyList.length - 1 ? 'border-bottom: none;' : ''}">
+                                    <strong style="color: #0f172a;">${w.duration}</strong>
+
                                 </td>
                             </tr>
-                            <tr>
-                                <td class="w-item">Inverter</td>
-                                <td class="w-dur">
-                                    <strong style="color: #0f172a;">05 Years</strong><br>
-                                    <span class="w-sub">(as per manufacturer)</span>
-                                </td>
-                            </tr>
-                            <tr>
-                                <td class="w-item" style="border-bottom: none;">Battery</td>
-                                <td class="w-dur" style="border-bottom: none;">
-                                    <strong style="color: #0f172a;">05 Years</strong><br>
-                                    <span class="w-sub">(as per manufacturer)</span>
-                                </td>
-                            </tr>
+                            `).join('')}
                         </table>
                     </div>
                 </div>

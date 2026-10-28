@@ -8,7 +8,8 @@ const quotationItemSchema = new mongoose.Schema({
     price: { type: Number, required: true },
     quantity: { type: Number, default: 1 },
     gstPercentage: { type: Number, default: 18 },
-    taxAmount: { type: Number, default: 0 }
+    taxAmount: { type: Number, default: 0 },
+    warranty: { type: String, default: "" }
 });
 
 const quotationSchema = new mongoose.Schema({
