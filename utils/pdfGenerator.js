@@ -23,7 +23,13 @@ function buildQuotationHTML(quotation, settings = {}, options = {}) {
     try {
         const path = require('path');
         const fs = require('fs');
-        let headerPath = path.join(__dirname, '../public/image.png');
+        let headerPath = path.join(__dirname, '../public/image copy 3.png');
+        if (!fs.existsSync(headerPath)) {
+            headerPath = path.join(__dirname, '../public/image.png');
+        }
+        if (!fs.existsSync(headerPath)) {
+            headerPath = path.join(__dirname, '../uploads/image copy 3.png');
+        }
         if (!fs.existsSync(headerPath)) {
             headerPath = path.join(__dirname, '../uploads/image.png');
         }
@@ -93,7 +99,7 @@ function buildQuotationHTML(quotation, settings = {}, options = {}) {
         };
     });
 
-    const minRows = Math.max(7, itemRows.length);
+    const minRows = Math.max(4, itemRows.length);
     const emptyRowsCount = minRows - itemRows.length;
     const emptyRows = Array.from({ length: emptyRowsCount });
 
@@ -235,7 +241,7 @@ function buildQuotationHTML(quotation, settings = {}, options = {}) {
         .banner-overlay-no {
             position: absolute;
             left: 81.2%;
-            top: 80.8%;
+            top: 79.4%;
             font-size: 12.5px;
             font-weight: 800;
             color: #00487C;
@@ -248,7 +254,7 @@ function buildQuotationHTML(quotation, settings = {}, options = {}) {
         .banner-overlay-date {
             position: absolute;
             left: 81.2%;
-            top: 88.2%;
+            top: 86.8%;
             font-size: 12.5px;
             font-weight: 800;
             color: #0f172a;
@@ -303,9 +309,9 @@ function buildQuotationHTML(quotation, settings = {}, options = {}) {
             text-align: center;
             border-bottom: 2px solid #1e293b;
             border-right: 1.5px solid #334155;
-            padding: 10px 6px;
-            font-size: 12.5px;
-            line-height: 1.3;
+            padding: 5px 6px;
+            font-size: 11.5px;
+            line-height: 1.2;
             vertical-align: middle;
             letter-spacing: 0.2px;
         }
@@ -731,7 +737,7 @@ function buildQuotationHTML(quotation, settings = {}, options = {}) {
         <div>
             <!-- 1. OFFICIAL TRUST HEADER BANNER WITH DYNAMIC ESTIMATE & DATE -->
             <div class="header-banner-box">
-                <img src="${headerImageBase64 || '/public/image.png'}" alt="Ram Milan Singh Charitable Trust" class="header-banner-img">
+                <img src="${headerImageBase64 || '/public/image%20copy%203.png'}" alt="Ram Milan Singh Charitable Trust" class="header-banner-img">
                 <div class="banner-overlay-no">${qNumber}</div>
                 <div class="banner-overlay-date">${qDate}</div>
             </div>
